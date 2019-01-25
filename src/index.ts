@@ -21,6 +21,13 @@ class Puyo {
     this.x = x;
     this.y = y;
   }
+  get isColored (): boolean {
+    if (this.p === PuyoType.Red || this.p === PuyoType.Green || this.p === PuyoType.Blue || this.p === PuyoType.Yellow || this.p === PuyoType.Purple) {
+      return true;
+    } else {
+      return false;
+    }
+  }
 }
 
 interface SimulatorSettings {
@@ -35,6 +42,8 @@ class Field {
   public matrix: Puyo[][];
   public inputMatrix: string[][];
   public settings: SimulatorSettings;
+  public poppingGroups: Puyo[][];
+  public poppingColors: string[];
 
   constructor(matrix: string[][], settings?: SimulatorSettings) {
     this.inputMatrix = matrix;
@@ -49,6 +58,8 @@ class Field {
         puyoToPop: 4
       };
     }
+    this.poppingGroups = [];
+    this.poppingColors = [];
     this.matrix = [];
     for (let x: number = 0; x < this.settings.cols; x++) {
       this.matrix[x] = [];
@@ -140,9 +151,77 @@ class Field {
       this.matrix[x] = newColumn;
     }
   }
+
+  public checkForColorPops(): void {
+    // Generate boolean matrix to track which cells have already been checked.
+    const checkMatrix: boolean[][] = []
+    for (let x: number = 0; x < this.settings.cols; x++) {
+      checkMatrix[x] = []
+      for (let y: number = 0; y < this.settings.rows; y++) {
+        checkMatrix[x][y] = false
+      }
+    }
+
+    const poppingGroups: Puyo[][] = []
+    const colors = []
+
+    // Loop through the matrix. If the loop comes across a Puyo, start a "group search".
+    for (let x = 0; x < this.settings.cols; x++) {
+      for (let y = this.settings.hiddenRows; y < this.settings.rows; y++) {
+        if (this.matrix[x][y].isColored && checkMatrix[x][y] === false) {
+          checkMatrix[x][y] = true
+
+          let group: Puyo[] = []
+          let puyo: Puyo
+          group.push(this.matrix[x][y])
+          for (let i = 0; i < group.length; i++) {
+            puyo = group[i]
+            // Check up
+            if (puyo.y > this.settings.hiddenRows && puyo.p === this.matrix[puyo.x][puyo.y - 1].p && checkMatrix[puyo.x][puyo.y - 1] === false) {
+              checkMatrix[puyo.x][puyo.y - 1] = true
+              group.push(this.matrix[puyo.x][puyo.y - 1])
+            }
+            // Check down
+            if (puyo.y < this.settings.rows - 1 && puyo.p === this.matrix[puyo.x][puyo.y + 1].p && checkMatrix[puyo.x][puyo.y + 1] === false) {
+              checkMatrix[puyo.x][puyo.y + 1] = true
+              group.push(this.matrix[puyo.x][puyo.y + 1])
+            }
+            // Check left
+            if (puyo.x > 0 && puyo.p === this.matrix[puyo.x - 1][puyo.y].p && checkMatrix[puyo.x - 1][puyo.y] === false) {
+              checkMatrix[puyo.x - 1][puyo.y] = true
+              group.push(this.matrix[puyo.x - 1][puyo.y])
+            }
+            // Check right
+            if (puyo.x < this.settings.cols - 1 && puyo.p === this.matrix[puyo.x + 1][puyo.y].p && checkMatrix[puyo.x + 1][puyo.y] === false) {
+              checkMatrix[puyo.x + 1][puyo.y] = true
+              group.push(this.matrix[puyo.x + 1][puyo.y])
+            }
+          }
+          if (group.length >= this.settings.puyoToPop) {
+            poppingGroups.push(group)
+            colors.push(group[0].p) // Push a color code
+          }
+        }
+      } 
+    }
+
+    // Get set of colors popping without duplicates
+    const poppingColors: string[] = colors.filter((value, index, self) => {
+      return self.indexOf(value) >= index
+    })
+
+    this.poppingGroups = poppingGroups;
+    this.poppingColors = poppingColors;
+  }
 }
 
 const test_matrix = new Field([
-  ["B", "0", "L", "R", "R", "0", "L", "L", "0", "G", "0", "L", "0"],
-  ["J", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0"]
+  ["B", "B", "B", "B", "Y", "Y", "Y", "Y", "G", "G", "G", "G", "G"],
+  ["J", "J", "P", "P", "P", "P", "R", "R", "R", "R", "G", "G", "G"],
+  ["B", "B", "B", "B", "Y", "Y", "Y", "Y", "G", "G", "G", "G", "G"],
+  ["J", "J", "P", "P", "P", "P", "R", "R", "R", "R", "G", "G", "G"],
+  ["B", "B", "B", "B", "Y", "Y", "Y", "Y", "G", "G", "G", "G", "G"],
+  ["J", "J", "P", "P", "P", "P", "R", "R", "R", "R", "G", "G", "G"]
 ]);
+
+test_matrix.checkForColorPops();
