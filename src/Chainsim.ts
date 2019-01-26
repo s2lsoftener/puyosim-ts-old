@@ -1,3 +1,4 @@
+import { transposeMatrix } from "./helper";
 import { Puyo, PuyoType } from "./Puyo";
 
 interface SimulatorSettings {
@@ -29,6 +30,7 @@ export default class Chainsim {
   public totalGarbage: number;
   public linkGarbage: number;
   public dropDistances: number[][];
+  public droppedMatrix: Puyo[][];
   public hasPops: boolean;
   public chainHistory: object[];
 
@@ -89,9 +91,10 @@ export default class Chainsim {
     this.linkGarbage = 0;
     this.hasPops = false;
     this.chainHistory = [];
-    
+
     this.matrix = [];
     this.dropDistances = [];
+    this.droppedMatrix = [];
     for (let x: number = 0; x < this.settings.cols; x++) {
       this.matrix[x] = [];
       this.dropDistances[x] = [];
@@ -152,10 +155,21 @@ export default class Chainsim {
     }
   }
 
+  public refreshPuyoPositionData(): void {
+    for (let x = 0; x < this.settings.cols; x++) {
+      for (let y = 0; y < this.settings.rows; y++) {
+        this.matrix[x][y].x = x;
+        this.matrix[x][y].y = y;
+      }
+    }
+  }
+
   public dropPuyos(): void {
-    // Drop the puyos in each column.
-    // Either they fall all the way to the ground,
-    // or they fall on top of the nearest Block Puyo.
+    this.matrix = this.droppedMatrix;
+  }
+
+  public calculateDropDistances(): void {
+    const droppedMatrix: Puyo[][] = [];
     for (let x: number = 0; x < this.matrix.length; x++) {
       const slicePoints: number[] = [-1];
       const slices: Puyo[][] = [];
@@ -183,14 +197,14 @@ export default class Chainsim {
         newColumn = [...newColumn, ...emptyCells, ...PuyoCells];
       });
 
-      this.matrix[x] = newColumn;
+      droppedMatrix[x] = newColumn;
     }
-  }
 
-  public calculateDropDistances(): void {
+    this.droppedMatrix = droppedMatrix;
+
     for (let x = 0; x < this.settings.cols; x++) {
       for (let y = 0; y < this.settings.rows; y++) {
-        this.dropDistances[x][y] = y - this.matrix[x][y].y
+        this.dropDistances[x][y] = y - droppedMatrix[x][y].y;
       }
     }
   }
@@ -384,6 +398,17 @@ export default class Chainsim {
     this.totalScore += this.linkScore;
   }
 
+  public get matrixText(): string[][] {
+    const textMatrix: string[][] = [];
+    for (let x = 0; x < this.settings.cols; x++) {
+      textMatrix[x] = [];
+      for (let y = 0; y < this.settings.rows; y++) {
+        textMatrix[x][y] = this.matrix[x][y].p;
+      }
+    }
+    return textMatrix;
+  }
+
   public calculateGarbage(): void {
     const nuisancePoints: number =
       this.linkScore / this.settings.targetPoint + this.leftoverNuisancePoints;
@@ -395,6 +420,7 @@ export default class Chainsim {
 
   public popPuyos(): void {
     for (const group of this.poppingGroups) {
+      console.log(group);
       for (const puyo of group) {
         this.matrix[puyo.x][puyo.y].p = "0";
       }
@@ -417,9 +443,27 @@ export default class Chainsim {
     }
   }
 
+  public refreshLinkData(): void {
+    this.poppingGroups = [];
+    this.poppingColors = [];
+    this.garbageClearCountMatrix = [];
+    this.linkScore = 0;
+    this.linkBonusMultiplier = 0;
+    this.linkPuyoMultiplier = 0;
+    this.linkGarbage = 0;
+    for (let x: number = 0; x < this.settings.cols; x++) {
+      for (let y: number = 0; y < this.settings.rows; y++) {
+        this.dropDistances[x][y] = 0;
+      }
+    }
+    this.droppedMatrix = [];
+  }
+
   public simulateLink(): boolean {
-    this.dropPuyos();
+    this.refreshLinkData();
     this.calculateDropDistances();
+    this.dropPuyos();
+    this.refreshPuyoPositionData();
     this.checkForColorPops();
     this.checkForGarbagePops();
 
@@ -436,22 +480,35 @@ export default class Chainsim {
   }
 
   public simulateChain(): void {
-    let result = true
+    let result = true;
     while (result) {
       result = this.simulateLink();
     }
   }
 
-  public readableMatrix(): string[][] {
-    const transposeMatrix: string[][] = []
+  public sendToPuyoNexus(): void {
+    const pnMatrix: string[][] = transposeMatrix(this.matrixText);
+    const conversionScheme: any = {
+      R: 4,
+      G: 7,
+      B: 5,
+      Y: 6,
+      P: 8,
+      J: 1,
+      "0": 0
+    };
+
+    let urlString: string = "";
     for (let y = 0; y < this.settings.rows; y++) {
-      transposeMatrix[y] = []
       for (let x = 0; x < this.settings.cols; x++) {
-        transposeMatrix[y][x] = this.matrix[x][y].p
+        urlString += conversionScheme[pnMatrix[y][x]];
       }
     }
-    return transposeMatrix
+    console.log(urlString);
+
+    const url = `https://puyonexus.com/chainsim/?w=${
+      this.settings.cols
+    }&h=${this.settings.rows - this.settings.hiddenRows}&chain=${urlString}`;
+    window.open(url);
   }
 }
-
-
