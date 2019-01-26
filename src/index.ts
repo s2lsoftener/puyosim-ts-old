@@ -11,3 +11,8 @@ const testMatrix = new Chainsim([
 
 testMatrix.simulateChain();
 console.log(testMatrix.readableMatrix());
+
+const outputResult = document.getElementById("result")!;
+testMatrix.readableMatrix().forEach(row => {
+  outputResult.innerHTML += row.toString() + "<br>";
+})
