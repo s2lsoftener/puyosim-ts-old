@@ -32,6 +32,8 @@ export default class Chainsim {
   public dropDistances: number[][];
   public droppedMatrix: Puyo[][];
   public hasPops: boolean;
+
+  public simState: string;
   public chainHistory: object[];
 
   constructor(matrix: string[][], settings?: SimulatorSettings) {
@@ -104,6 +106,30 @@ export default class Chainsim {
       }
     }
     this.updateFieldMatrix(this.inputMatrix);
+
+    // Set simulator state.
+    // idle - chain hasn't started yet
+    // checkingDrops - Calc drop data and run animations.
+    //     refreshLinkData();
+    //     calculateDropDistances();
+    // dropped - fully set the puyo sin the new drop position.
+    //     dropPuyos();
+    //     refreshPuyoPositionData();
+    // checkingPops - Calc pops and run animations.
+    //     checkForColorPops();
+    //     checkForGarbagePops();
+    //     if (this.hasPops === true) {
+    //       this.chainLength += 1;
+    //       this.calculateLinkScore();
+    //       this.calculateGarbage();
+    //       this.popPuyos();
+    //       this.popGarbage();
+    //       this.hasPops = false;
+    //     }
+    // finished - no more pops or anything to drop.
+    this.simState = 'idle';
+    // Add input data to chainHistory
+
   }
 
   public updateFieldMatrix(newMatrix: string[][]): void {
@@ -207,6 +233,9 @@ export default class Chainsim {
         this.dropDistances[x][y] = y - droppedMatrix[x][y].y;
       }
     }
+
+    // Check if there's any drops at all
+    
   }
 
   public checkForColorPops(): void {
@@ -486,15 +515,34 @@ export default class Chainsim {
     }
   }
 
+  public advanceState(): string {
+    // Check the current state when this method was called
+    switch (this.simState) {
+      case "idle":
+        // If idle, start checking drops
+        this.simState = "checkingDrops";
+        this.refreshLinkData();
+        this.calculateDropDistances();
+        return "checkingDrops";
+      case "checkingDrops":
+        this.simState = "dropped";
+        this.dropPuyos();
+        this.refreshPuyoPositionData();
+        return ""
+      default:
+        return "failed";
+    }
+  }
+
   public sendToPuyoNexus(): void {
     const pnMatrix: string[][] = transposeMatrix(this.matrixText);
     const conversionScheme: any = {
-      R: 4,
-      G: 7,
-      B: 5,
-      Y: 6,
-      P: 8,
-      J: 1,
+      "R": 4,
+      "G": 7,
+      "B": 5,
+      "Y": 6,
+      "P": 8,
+      "J": 1,
       "0": 0
     };
 

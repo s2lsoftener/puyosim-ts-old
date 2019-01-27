@@ -32,10 +32,6 @@ const displayInitial = document.getElementById("initial")!;
 transposeMatrix(testMatrix2.inputMatrix).forEach(row => {
   displayInitial.innerHTML += row.toString() + "<br>";
 });
-testMatrix2.sendToPuyoNexus();
-testMatrix2.simulateChain();
-console.log(testMatrix2.hasPops);
-console.log(testMatrix2.poppingGroups);
 
 const displaySimulation = document.getElementById("result")!;
 transposeMatrix(testMatrix2.matrixText).forEach(row => {
@@ -51,4 +47,7 @@ displayLength.innerHTML = testMatrix2.chainLength.toString();
 const displayGarbage = document.getElementById("garbage")!;
 displayGarbage.innerHTML = testMatrix2.totalGarbage.toString();
 
-testMatrix2.sendToPuyoNexus();
+document.getElementById("open-puyonexus")!.addEventListener("click", () => {
+  testMatrix2.sendToPuyoNexus()
+});
+
