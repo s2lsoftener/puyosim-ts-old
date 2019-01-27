@@ -14,7 +14,7 @@ interface SimulatorSettings {
   pointPuyo: number;
 }
 
-export default class Chainsim {
+export default class Field {
   public matrix: Puyo[][];
   public inputMatrix: string[][];
   public settings: SimulatorSettings;
@@ -31,9 +31,10 @@ export default class Chainsim {
   public linkGarbage: number;
   public dropDistances: number[][];
   public droppedMatrix: Puyo[][];
-  public hasPops: boolean;
 
   public simState: string;
+  public hasPops: boolean;
+  public hasDrops: boolean;
   public chainHistory: object[];
 
   constructor(matrix: string[][], settings?: SimulatorSettings) {
@@ -92,6 +93,7 @@ export default class Chainsim {
     this.totalGarbage = 0;
     this.linkGarbage = 0;
     this.hasPops = false;
+    this.hasDrops = false;
     this.chainHistory = [];
 
     this.matrix = [];
@@ -112,7 +114,7 @@ export default class Chainsim {
     // checkingDrops - Calc drop data and run animations.
     //     refreshLinkData();
     //     calculateDropDistances();
-    // dropped - fully set the puyo sin the new drop position.
+    // dropped - fully set the puyos in the new drop position.
     //     dropPuyos();
     //     refreshPuyoPositionData();
     // checkingPops - Calc pops and run animations.
@@ -126,10 +128,10 @@ export default class Chainsim {
     //       this.popGarbage();
     //       this.hasPops = false;
     //     }
+    // popped - fully set the new matrix with the puyo and ojama removed
     // finished - no more pops or anything to drop.
-    this.simState = 'idle';
+    this.simState = "idle";
     // Add input data to chainHistory
-
   }
 
   public updateFieldMatrix(newMatrix: string[][]): void {
@@ -231,11 +233,11 @@ export default class Chainsim {
     for (let x = 0; x < this.settings.cols; x++) {
       for (let y = 0; y < this.settings.rows; y++) {
         this.dropDistances[x][y] = y - droppedMatrix[x][y].y;
+        if (this.dropDistances[x][y] > 0) {
+          this.hasDrops = true;
+        }
       }
     }
-
-    // Check if there's any drops at all
-    
   }
 
   public checkForColorPops(): void {
@@ -493,6 +495,7 @@ export default class Chainsim {
     this.calculateDropDistances();
     this.dropPuyos();
     this.refreshPuyoPositionData();
+    this.hasDrops = false;
     this.checkForColorPops();
     this.checkForGarbagePops();
 
@@ -519,30 +522,58 @@ export default class Chainsim {
     // Check the current state when this method was called
     switch (this.simState) {
       case "idle":
+      case "popped":
         // If idle, start checking drops
         this.simState = "checkingDrops";
         this.refreshLinkData();
         this.calculateDropDistances();
-        return "checkingDrops";
+        break;
       case "checkingDrops":
-        this.simState = "dropped";
-        this.dropPuyos();
-        this.refreshPuyoPositionData();
-        return ""
-      default:
-        return "failed";
+        if (this.hasDrops) {
+          this.simState = "dropped";
+          this.dropPuyos();
+          this.refreshPuyoPositionData();
+          this.hasDrops = false;
+          break;
+        } else {
+          this.simState = "dropped";
+          this.refreshPuyoPositionData();
+          // Continue down to next switch statement
+        }
+      case "dropped":
+        this.checkForColorPops();
+        this.checkForGarbagePops();
+        if (this.hasPops) {
+          this.simState = "checkingPops";
+          this.chainLength += 1;
+          this.calculateLinkScore();
+          this.calculateGarbage();
+        } else {
+          this.simState = "finished";
+          this.hasPops = false;
+        }
+        break;
+      case "checkingPops":
+        this.simState = "popped";
+        this.popPuyos();
+        this.popGarbage();
+        this.hasPops = false;
+        break;
+      case "finished":
+        break;
     }
+    return this.simState;
   }
 
   public sendToPuyoNexus(): void {
     const pnMatrix: string[][] = transposeMatrix(this.matrixText);
     const conversionScheme: any = {
-      "R": 4,
-      "G": 7,
-      "B": 5,
-      "Y": 6,
-      "P": 8,
-      "J": 1,
+      R: 4,
+      G: 7,
+      B: 5,
+      Y: 6,
+      P: 8,
+      J: 1,
       "0": 0
     };
 
