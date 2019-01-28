@@ -1,0 +1,108 @@
+{
+  "frames": {
+    "chain_0.png": {
+      "frame": {"x": 0, "y": 15, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "chain_1.png": {
+      "frame": {"x": 64, "y": 15, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "chain_2.png": {
+      "frame": {"x": 128, "y": 15, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "chain_3.png": {
+      "frame": {"x": 192, "y": 15, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "chain_4.png": {
+      "frame": {"x": 256, "y": 15, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "chain_5.png": {
+      "frame": {"x": 320, "y": 15, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "chain_6.png": {
+      "frame": {"x": 384, "y": 15, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "chain_7.png": {
+      "frame": {"x": 448, "y": 15, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "chain_8.png": {
+      "frame": {"x": 0, "y": 135, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "chain_9.png": {
+      "frame": {"x": 64, "y": 135, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "spacer.png": {
+      "frame": {"x": 430, "y": 135, "w": 64, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    },
+    "chain_text.png": {
+      "frame": {"x": 192, "y": 135, "w": 128, "h": 96},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x": 0, "y": 0, "w": 64, "h": 96},
+      "sourceSize": {"w": 64, "h": 96},
+      "pivot": {"x": 0.5, "y": 0.5}
+    }
+  },
+  "meta": {
+    "app": "http://www.puyonexus.com",
+    "version": "1.0",
+    "image": "chain_font.png",
+    "format": "RGBA8888",
+    "size": {"w": 512, "h": 256},
+    "scale": "1"
+  }
+}

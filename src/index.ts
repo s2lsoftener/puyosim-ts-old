@@ -1,14 +1,6 @@
+import ChainsimEditor from "./ChainsimEditor";
 import Field from "./Field";
 import { transposeMatrix } from "./helper";
-
-const testMatrix = new Field([
-  ["B", "B", "B", "B", "Y", "Y", "Y", "Y", "G", "G", "G", "G", "G"],
-  ["J", "J", "P", "P", "P", "P", "R", "R", "R", "R", "G", "G", "G"],
-  ["B", "B", "B", "B", "Y", "Y", "Y", "Y", "G", "G", "G", "G", "G"],
-  ["J", "J", "P", "P", "P", "P", "R", "R", "R", "R", "G", "G", "G"],
-  ["B", "B", "B", "B", "Y", "Y", "Y", "Y", "G", "G", "G", "G", "G"],
-  ["J", "J", "P", "P", "P", "P", "R", "R", "R", "R", "G", "G", "G"]
-]);
 
 const testMatrix2 = new Field(
   transposeMatrix([
@@ -16,9 +8,9 @@ const testMatrix2 = new Field(
     ["0", "0", "0", "B", "0", "0"],
     ["0", "0", "0", "P", "B", "0"],
     ["0", "0", "0", "P", "B", "0"],
-    ["0", "0", "0", "G", "B", "0"],
+    ["0", "0", "R", "G", "B", "0"],
     ["0", "0", "0", "G", "P", "B"],
-    ["B", "G", "R", "R", "G", "P"],
+    ["B", "G", "0", "R", "G", "P"],
     ["Y", "R", "R", "B", "G", "B"],
     ["G", "G", "G", "Y", "G", "B"],
     ["Y", "Y", "Y", "P", "B", "Y"],
@@ -63,3 +55,30 @@ document.getElementById("step")!.addEventListener("click", () => {
   displayLength.innerHTML = testMatrix2.chainLength.toString();
   displayGarbage.innerHTML = testMatrix2.totalGarbage.toString();
 });
+
+document.getElementById("game-step")!.addEventListener("click", () => {
+  console.log("Advance state");
+  game.gameField.advanceState();
+})
+
+const gameContainer: HTMLElement = document.getElementById("game-container")!;
+const game = new ChainsimEditor(gameContainer);
+
+game.setNewField(
+  transposeMatrix([
+    ["0", "0", "0", "B", "0", "0"],
+    ["0", "0", "0", "B", "0", "0"],
+    ["0", "0", "0", "P", "B", "0"],
+    ["0", "0", "0", "P", "B", "0"],
+    ["0", "0", "R", "G", "B", "0"],
+    ["0", "0", "0", "G", "P", "B"],
+    ["B", "G", "0", "R", "G", "P"],
+    ["Y", "R", "R", "B", "G", "B"],
+    ["G", "G", "G", "Y", "G", "B"],
+    ["Y", "Y", "Y", "P", "B", "Y"],
+    ["B", "R", "G", "J", "Y", "Y"],
+    ["B", "B", "R", "G", "P", "P"],
+    ["R", "R", "G", "G", "J", "P"]
+  ])
+)
+

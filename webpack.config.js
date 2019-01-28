@@ -1,4 +1,5 @@
 const webpack = require('webpack');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const path = require('path');
 
 const config = {
@@ -23,7 +24,13 @@ const config = {
     ]
   },
   plugins: [
-    new webpack.HotModuleReplacementPlugin()
+    new webpack.HotModuleReplacementPlugin(),
+    new CopyWebpackPlugin([
+      {
+        from: "src/assets",
+        to: "./chainsim"
+      }
+    ])
   ],
   resolve: {
     extensions: [

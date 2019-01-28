@@ -109,6 +109,8 @@ export default class Field {
     }
     this.updateFieldMatrix(this.inputMatrix);
 
+    this.setConnectionData();
+
     // Set simulator state.
     // idle - chain hasn't started yet
     // checkingDrops - Calc drop data and run animations.
@@ -238,6 +240,9 @@ export default class Field {
         }
       }
     }
+
+    // Reset connection data
+    this.setConnectionData();
   }
 
   public checkForColorPops(): void {
@@ -320,6 +325,64 @@ export default class Field {
     } else {
       this.hasPops = true;
     }
+
+    // Reset connection data
+    this.setConnectionData();
+  }
+
+  public setConnectionData(): void {
+    for (let x = 0; x < this.settings.cols; x++) {
+      for (let y = this.settings.hiddenRows; y < this.settings.rows; y++) {
+        if (y < this.settings.hiddenRows) {
+          this.matrix[x][y].connections = "n";
+        } else if (this.dropDistances[x][y] > 0) {
+          this.matrix[x][y].connections = "n";
+        } else if (this.matrix[x][y].p === PuyoType.None || this.matrix[x][y].isGarbage) {
+          this.matrix[x][y].connections = "n";
+        } else {
+          let connection: string = "";
+          
+          // Check up
+          if (
+            this.matrix[x][y].y > this.settings.hiddenRows &&
+            this.matrix[x][y].p === this.matrix[x][y - 1].p &&
+            this.dropDistances[x][y - 1] === 0
+          ) {
+            connection += "u";
+          }
+          // Check right
+          if (
+            this.matrix[x][y].x < this.settings.cols - 1 &&
+            this.matrix[x][y].p === this.matrix[x + 1][y].p &&
+            this.dropDistances[x + 1][y] === 0
+          ) {
+            connection += "r";
+          }
+          // Check down
+          if (
+            this.matrix[x][y].y < this.settings.rows - 1 &&
+            this.matrix[x][y].p === this.matrix[x][y + 1].p &&
+            this.dropDistances[x][y + 1] === 0
+          ) {
+            connection += "d";
+          }
+          // Check left
+          if (
+            this.matrix[x][y].x > 0 &&
+            this.matrix[x][y].p === this.matrix[x - 1][y].p &&
+            this.dropDistances[x - 1][y] === 0
+          ) {
+            connection += "l";
+          }
+  
+          if (connection === "") {
+            connection = "n";
+          }
+  
+          this.matrix[x][y].connections = connection;
+        }
+      }
+    } 
   }
 
   public checkForGarbagePops(): void {

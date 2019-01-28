@@ -8,3 +8,14 @@ export function transposeMatrix(inputMatrix: string[][]): string[][] {
   }
   return transpose;
 }
+
+export function createUniformArray(value: any, cols: number, rows: number) {
+  const matrix: any[][] = [];
+  for (let x = 0; x < cols; x++) {
+    matrix[x] = []
+    for (let y = 0; y < cols; y++) {
+      matrix[x][y] = value;
+    }
+  }
+  return matrix
+}

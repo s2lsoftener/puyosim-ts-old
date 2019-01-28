@@ -1,0 +1,20 @@
+{
+  "frames": {
+    "red.gif": {
+      "frame": {"x": 0, "y": 0, "w": 32, "h": 32},
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {"x":0,"y":0,"w":32,"h":32},
+      "sourceSize": {"w":32,"h":32},
+      "pivot": {"x":0,"y":0}
+    }
+  },
+  "meta": {
+    "app": "http://www.puyonexus.com",
+    "version": "1.0",
+    "image": "red.gif",
+    "format": "RGBA8888",
+    "size": {"w": 32, "h": 32},
+    "scale": "1"
+  }
+}

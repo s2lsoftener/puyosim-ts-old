@@ -14,10 +14,12 @@
     "lint": "tslint 'src/**/*.{ts}'"
   },
   "dependencies": {
-    "pixi.js": "^4.8.5"
+    "pixi.js": "^5.0.0-alpha.3"
   },
   "devDependencies": {
-    "@types/pixi.js": "^4.8.6",
+    "@types/node": "^10.12.18",
+    "copy-webpack-plugin": "^4.6.0",
+    "pixi-typescript": "https://github.com/pixijs/pixi-typescript.git#v5.0-rc",
     "ts-loader": "^5.2.1",
     "tslint": "^5.12.1",
     "tslint-config-prettier": "^1.17.0",
