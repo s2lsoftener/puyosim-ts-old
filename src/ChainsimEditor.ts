@@ -1,6 +1,7 @@
 import * as PIXI from "pixi.js";
 import Field from "./Field";
 import { createUniformArray, transposeMatrix } from "./helper";
+import { Puyo } from "./Puyo";
 
 const Sprite = PIXI.Sprite;
 
@@ -42,6 +43,7 @@ export default class ChainsimEditor {
   public gameSettings: GameSettings;
   public simulatorSettings: SimulatorSettings;
   public displayMode: string;
+  public simulationSpeed: number;
   
   // PIXI Objects
   public loader: PIXI.Loader;
@@ -58,9 +60,12 @@ export default class ChainsimEditor {
   public puyoDisplay: PIXI.Sprite[][] = [];
   public scoreDisplay: PIXI.Sprite[] = [];
 
-  // State functions
-  public state: any;
+  // State trackers
+  public state: any; // Function alias
   public frame: number;
+  public puyoStates: string[][];
+  public puyoDropSpeed: number[][];
+  public puyoBounceFrames: number[][];
 
   // Data
   public gameField: Field;
@@ -75,10 +80,9 @@ export default class ChainsimEditor {
       cellWidth: 64,
       cellHeight: 60
     };
-
     this.simulatorSettings = defaultSimulatorSettings;
-    
     this.displayMode = 'simple';
+    this.simulationSpeed = 1;
 
     // Init data
     this.gameField = new Field(createUniformArray("0", this.simulatorSettings.cols, this.simulatorSettings.rows), this.simulatorSettings);
@@ -95,8 +99,10 @@ export default class ChainsimEditor {
         }
       }
     }
-    console.log(this.coordArray);
-    
+    this.puyoStates = createUniformArray("idle", this.simulatorSettings.cols, this.simulatorSettings.rows);
+    this.puyoDropSpeed = createUniformArray(0, this.simulatorSettings.cols, this.simulatorSettings.rows);
+    this.puyoBounceFrames = createUniformArray(0, this.simulatorSettings.cols, this.simulatorSettings.rows);
+
     // Create app and append to HTML
     this.app = new PIXI.Application(
       this.gameSettings.width,
@@ -107,8 +113,8 @@ export default class ChainsimEditor {
         resolution: 1
       }
     );
-    this.app.view.style.width = `${this.gameSettings.width * 0.5}px`;
-    this.app.view.style.height = `${this.gameSettings.height * 0.5}px`;
+    this.app.view.style.width = `${this.gameSettings.width * 0.8}px`;
+    this.app.view.style.height = `${this.gameSettings.height * 0.8}px`;
     targetDiv.appendChild(this.app.view);
 
     // Create loader and load resources
@@ -141,12 +147,11 @@ export default class ChainsimEditor {
         this.fieldSprites = resources["/chainsim/img/field.json"].textures;
         this.puyoSprites = resources["/chainsim/img/puyo.json"].textures;
         this.chainCountSprites = resources["/chainsim/img/chain_font.json"].textures;
-        console.log(this.fieldSprites);
         this.initFieldDisplay();
         this.initScoreDisplay();
         this.initGameOverX();
         this.initPuyoDisplay();
-        this.updatePuyoSprites();
+        this.refreshPuyoSprites();
       })
     
     this.state = this.idleState;
@@ -157,7 +162,7 @@ export default class ChainsimEditor {
 
   public setNewField(inputMatrix: string[][]): void {
     this.gameField = new Field(inputMatrix, this.simulatorSettings);
-    this.updatePuyoSprites();
+    this.refreshPuyoSprites();
   }
 
   private initFieldDisplay(): void {
@@ -251,14 +256,15 @@ export default class ChainsimEditor {
     }
   }
 
-  private updatePuyoSprites(): void {
+  private refreshPuyoSprites(): void {
     for (let x = 0; x < this.simulatorSettings.cols; x++) {
       for (let y = 0; y < this.simulatorSettings.rows; y++) {
-        console.log(`${this.gameField.matrix[x][y].name}_${this.gameField.matrix[x][y].connections}.png`);
+        // console.log(`${this.gameField.matrix[x][y].name}_${this.gameField.matrix[x][y].connections}.png`);
         this.puyoDisplay[x][y].texture = this.puyoSprites[`${this.gameField.matrix[x][y].name}_${this.gameField.matrix[x][y].connections}.png`]
         this.puyoDisplay[x][y].anchor.set(0.5);
         this.puyoDisplay[x][y].x = this.coordArray[x][y].x;
         this.puyoDisplay[x][y].y = this.coordArray[x][y].y;
+        this.puyoStates[x][y] = "idle";
       }
     }
   }
@@ -269,22 +275,132 @@ export default class ChainsimEditor {
 
   private idleState(delta: number): void {
     if (this.gameField.simState === "checkingDrops") {
-      this.state = this.animateDrops;
+      this.state = this.animateFieldDrops;
     }
   }
 
-  private animateDrops(delta: number): void {
-    let t = this.frame;
-    let speed = delta * 1;
+  private animateFieldDrops(delta: number): void {
+    const t = this.frame;
+    const speed = delta * this.simulationSpeed;
 
+    let stillDropping: boolean = false;
     for (let i = 0; i < Math.round(speed); i++) {
       for (let x = 0; x < this.simulatorSettings.cols; x++) {
         for (let y = 0; y < this.simulatorSettings.rows; y++) {
           if (this.gameField.dropDistances[x][y] > 0) {
-            // animatino code...
+            stillDropping = true;
+          }
+          
+          // If the Puyo is "idle", change state to "dropping"
+          if (this.gameField.dropDistances[x][y] > 0 && this.puyoStates[x][y] === "idle") {
+            this.puyoStates[x][y] = "dropping";
+          }
+
+          // Apply gravity to puyos that should be dropping
+          if (this.puyoStates[x][y] === "dropping") {
+            if (this.puyoDisplay[x][y].y + this.puyoDropSpeed[x][y] < this.coordArray[x][y].y + this.gameField.dropDistances[x][y] * this.gameSettings.cellHeight) {
+              this.puyoDisplay[x][y].y += this.puyoDropSpeed[x][y]
+              this.puyoDropSpeed[x][y] += 0.1875 / 16 * 60 * t
+            } else {
+              this.puyoStates[x][y] = "bouncing";
+              this.puyoDisplay[x][y].y = this.coordArray[x][y].y + this.gameField.dropDistances[x][y] * this.gameSettings.cellHeight + this.gameSettings.cellHeight / 2
+              if (this.gameField.matrix[x][y].isColored) {
+                this.puyoDisplay[x][y].anchor.set(0.5, 1);
+              }
+            }
+          }
+
+          // Play bounce animation for colored Puyos
+          if (this.puyoStates[x][y] === "bouncing") {
+            this.puyoBounceFrames[x][y] += 1;
+            if (this.puyoBounceFrames[x][y] < 8 && this.gameField.matrix[x][y].isColored) {
+              this.puyoDisplay[x][y].scale.y -= 0.2 / 8;
+              this.puyoDisplay[x][y].scale.x += 0.2 / 8;
+            } else if (this.puyoBounceFrames[x][y] < 16 && this.gameField.matrix[x][y].isColored) {
+              this.puyoDisplay[x][y].scale.y += 0.2 / 8;
+              this.puyoDisplay[x][y].scale.x -= 0.2 / 8;
+            } else {
+              this.puyoDisplay[x][y].anchor.set(0.5, 0.5);
+              this.puyoDisplay[x][y].y = this.coordArray[x][y].y + this.gameField.dropDistances[x][y] * this.gameSettings.cellHeight;
+              this.puyoStates[x][y] = "idle";
+              this.gameField.dropDistances[x][y] = 0;
+              this.puyoBounceFrames[x][y] = 0;
+              this.puyoDropSpeed[x][y] = 4;
+            }
           }
         }
       }
+      this.frame += 1;
+    }
+
+    if (stillDropping === false) {
+      this.frame = 0;
+      this.gameField.advanceState(); // Advance state to "dropped" (set the field.)
+      this.refreshPuyoSprites();
+
+      console.log(this.gameField.simState);
+      
+      const nextState: string = this.gameField.advanceState();
+      if (nextState === "checkingPops") {
+        this.state = this.animateColorPops;
+      } else {
+        this.state = this.idleState;
+      }
+
+    }
+  }
+
+  private animateColorPops(delta: number): void {
+    const speed: number = delta * this.simulationSpeed;
+
+    for (let i = 0; i < Math.round(speed); i++) {
+      if (this.gameField.hasPops) {
+        for (const group of this.gameField.poppingGroups) {
+          for (const puyo of group) {
+            if (this.frame < 24) {
+              (Math.cos(this.frame / 3 * Math.PI) >= 0)
+                ? this.puyoDisplay[puyo.x][puyo.y].alpha = 1
+                : this.puyoDisplay[puyo.x][puyo.y].alpha = 0
+            } else if (this.frame >= 24) {
+              this.puyoDisplay[puyo.x][puyo.y].alpha = 1;
+              this.puyoDisplay[puyo.x][puyo.y].texture = this.puyoSprites[`burst_${this.gameField.matrix[puyo.x][puyo.y].name}.png`]
+            }
+          }
+        }
+
+        if (this.frame < 24) {
+          for (const group of this.gameField.poppingGroups) {
+            for (const puyo of group) {
+              (Math.cos(this.frame / 3 * Math.PI) >= 0)
+                ? this.puyoDisplay[puyo.x][puyo.y].alpha = 1
+                : this.puyoDisplay[puyo.x][puyo.y].alpha = 0
+            }
+          }
+        } else if (this.frame >= 24) {
+          for (const group of this.gameField.poppingGroups) {
+            for (const puyo of group) {
+              this.puyoDisplay[puyo.x][puyo.y].alpha = 1;
+              this.puyoDisplay[puyo.x][puyo.y].texture = this.puyoSprites[`burst_${this.gameField.matrix[puyo.x][puyo.y].name}.png`]
+            }
+          }
+
+          for (let x = 0; x < this.simulatorSettings.cols; x++) {
+            for (let y = 0; y < this.simulatorSettings.rows; y++) {
+              if (this.gameField.garbageClearCountMatrix[x][y] === 1) {
+                this.puyoDisplay[x][y].alpha = 1 - this.frame / 32;
+              } else {
+
+              }
+            }
+          }
+        }
+      }
+      this.frame += 1;
+    }
+
+    if (this.frame >= 32) {
+      this.frame = 0;
+
     }
   }
 

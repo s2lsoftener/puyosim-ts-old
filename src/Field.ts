@@ -190,6 +190,7 @@ export default class Field {
       for (let y = 0; y < this.settings.rows; y++) {
         this.matrix[x][y].x = x;
         this.matrix[x][y].y = y;
+        this.dropDistances[x][y] = 0;
       }
     }
   }
@@ -234,7 +235,13 @@ export default class Field {
 
     for (let x = 0; x < this.settings.cols; x++) {
       for (let y = 0; y < this.settings.rows; y++) {
-        this.dropDistances[x][y] = y - droppedMatrix[x][y].y;
+        this.droppedMatrix[x][y].newY = y;
+      }
+    }
+
+    for (let x = 0; x < this.settings.cols; x++) {
+      for (let y = 0; y < this.settings.rows; y++) {
+        this.dropDistances[x][y] = this.matrix[x][y].newY - y
         if (this.dropDistances[x][y] > 0) {
           this.hasDrops = true;
         }
@@ -596,11 +603,13 @@ export default class Field {
           this.simState = "dropped";
           this.dropPuyos();
           this.refreshPuyoPositionData();
+          this.setConnectionData();
           this.hasDrops = false;
           break;
         } else {
           this.simState = "dropped";
           this.refreshPuyoPositionData();
+          this.setConnectionData();
           // Continue down to next switch statement
         }
       case "dropped":
