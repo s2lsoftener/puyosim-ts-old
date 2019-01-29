@@ -241,7 +241,7 @@ export default class Field {
 
     for (let x = 0; x < this.settings.cols; x++) {
       for (let y = 0; y < this.settings.rows; y++) {
-        this.dropDistances[x][y] = this.matrix[x][y].newY - y
+        this.dropDistances[x][y] = this.matrix[x][y].newY - y;
         if (this.dropDistances[x][y] > 0) {
           this.hasDrops = true;
         }
@@ -344,11 +344,14 @@ export default class Field {
           this.matrix[x][y].connections = "n";
         } else if (this.dropDistances[x][y] > 0) {
           this.matrix[x][y].connections = "n";
-        } else if (this.matrix[x][y].p === PuyoType.None || this.matrix[x][y].isGarbage) {
+        } else if (
+          this.matrix[x][y].p === PuyoType.None ||
+          this.matrix[x][y].isGarbage
+        ) {
           this.matrix[x][y].connections = "n";
         } else {
           let connection: string = "";
-          
+
           // Check up
           if (
             this.matrix[x][y].y > this.settings.hiddenRows &&
@@ -381,15 +384,15 @@ export default class Field {
           ) {
             connection += "l";
           }
-  
+
           if (connection === "") {
             connection = "n";
           }
-  
+
           this.matrix[x][y].connections = connection;
         }
       }
-    } 
+    }
   }
 
   public checkForGarbagePops(): void {
@@ -521,7 +524,6 @@ export default class Field {
 
   public popPuyos(): void {
     for (const group of this.poppingGroups) {
-      console.log(group);
       for (const puyo of group) {
         this.matrix[puyo.x][puyo.y].p = "0";
       }
@@ -597,6 +599,7 @@ export default class Field {
         this.simState = "checkingDrops";
         this.refreshLinkData();
         this.calculateDropDistances();
+        this.setConnectionData();
         break;
       case "checkingDrops":
         if (this.hasDrops) {
