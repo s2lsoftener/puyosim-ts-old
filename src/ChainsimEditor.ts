@@ -85,7 +85,9 @@ export default class ChainsimEditor {
   public fieldDisplay: { [k: string]: any } = {};
   public fieldControls: { [k: string]: any } = {};
   public puyoDisplay: PIXI.Sprite[][] = [];
+  public garbageDisplay: PIXI.Sprite[] = [];
   public scoreDisplay: PIXI.Sprite[] = [];
+  public editorDisplay: { [k: string]: any } = {};
 
   // State trackers
   public state: any; // Function alias
@@ -93,7 +95,9 @@ export default class ChainsimEditor {
   public puyoStates: string[][];
   public puyoDropSpeed: number[][];
   public puyoBounceFrames: number[][];
+  public garbageDisplayCoordinates: number[];
   public prevState: any; // Function alias
+  public editorOpen: boolean;
 
   // Data
   public gameField: Field;
@@ -156,6 +160,7 @@ export default class ChainsimEditor {
       this.simulatorSettings.cols,
       this.simulatorSettings.rows
     );
+    this.garbageDisplayCoordinates = [];
 
     // Create app and append to HTML
     this.app = new PIXI.Application(
@@ -195,20 +200,12 @@ export default class ChainsimEditor {
     ];
 
     this.loader.add(this.texturesToLoad).load((loader: any, resources: any) => {
-      this.resources = resources;
-      this.fieldSprites = resources["/chainsim/img/field.json"].textures;
-      this.puyoSprites = resources["/chainsim/img/puyo.json"].textures;
-      this.chainCountSprites =
-        resources["/chainsim/img/chain_font.json"].textures;
-      this.initFieldDisplay();
-      this.initScoreDisplay();
-      this.initGameOverX();
-      this.initPuyoDisplay();
-      this.refreshPuyoSprites();
-      this.initFieldControls();
+      this.loadAssets(loader, resources);
     });
 
     this.state = this.idleState;
+
+    this.editorOpen = false;
 
     // Load a test matrix
     this.app.ticker.add(delta => this.gameLoop(delta));
@@ -217,6 +214,22 @@ export default class ChainsimEditor {
   public setNewField(inputMatrix: string[][]): void {
     this.gameField = new Field(inputMatrix, this.simulatorSettings);
     this.refreshPuyoSprites();
+  }
+
+  private loadAssets(loader: any, resources: any): void {
+    this.resources = resources;
+    this.fieldSprites = resources["/chainsim/img/field.json"].textures;
+    this.puyoSprites = resources["/chainsim/img/puyo.json"].textures;
+    this.chainCountSprites =
+      resources["/chainsim/img/chain_font.json"].textures;
+    this.initFieldDisplay();
+    this.initScoreDisplay();
+    this.initGameOverX();
+    this.initPuyoDisplay();
+    this.refreshPuyoSprites();
+    this.initFieldControls();
+    this.initGarbageDisplay();
+    this.initToolDisplay();
   }
 
   private initFieldDisplay(): void {
@@ -358,6 +371,7 @@ export default class ChainsimEditor {
       this.gameField.setConnectionData();
       this.gameField.simState = "idle";
       this.refreshPuyoSprites();
+      this.refreshGarbageIcons();
 
       this.state = this.idleState;
     });
@@ -459,6 +473,7 @@ export default class ChainsimEditor {
     });
     this.fieldControls.edit.on("pointerup", () => {
       this.fieldControls.edit.texture = this.fieldSprites["btn_edit.png"];
+      this.toggleEditorWindow();
     });
     this.fieldControls.edit.on("pointerupoutside", () => {
       this.fieldControls.edit.texture = this.fieldSprites["btn_edit.png"];
@@ -474,6 +489,84 @@ export default class ChainsimEditor {
     this.fieldDisplay.disableTouchBehind.height = this.gameSettings.height;
     this.app.stage.addChild(this.fieldDisplay.disableTouchBehind);
     this.fieldDisplay.disableTouchBehind.interactive = false;
+  }
+
+  private initGarbageDisplay(): void {
+    // Place Garbage Tray
+    this.fieldDisplay.garbageTray = new Sprite(
+      this.fieldSprites["garbage_tray.png"]
+    );
+    this.fieldDisplay.garbageTray.x = 316;
+    this.fieldDisplay.garbageTray.y = 915;
+    this.fieldDisplay.garbageTray.scale.set(0.7, 0.7);
+    this.app.stage.addChild(this.fieldDisplay.garbageTray);
+
+    // Place icon sprites
+    const startX: number = 324;
+    for (let i = 0; i < 6; i++) {
+      this.garbageDisplay[i] = new Sprite(this.puyoSprites["spacer_n.png"]);
+      this.garbageDisplay[i].scale.set(0.7, 0.7);
+      this.garbageDisplay[i].x = startX + this.garbageDisplay[i].width * i;
+      this.garbageDisplayCoordinates[i] =
+        startX + this.garbageDisplay[i].width * i;
+      this.garbageDisplay[i].y = 910;
+      this.app.stage.addChild(this.garbageDisplay[i]);
+    }
+  }
+
+  private initToolDisplay(): void {
+    // "Speech bubble"
+    this.editorDisplay.editBubble = new Sprite(
+      this.resources["/chainsim/img/edit_bubble.png"].texture
+    );
+    this.editorDisplay.editBubble.x = 520;
+    this.editorDisplay.editBubble.y = 704;
+    this.editorDisplay.editBubble.anchor.set(0.87, 0);
+    this.editorDisplay.editBubble.interactive = true;
+    this.editorDisplay.editBubble.visible = false;
+    this.app.stage.addChild(this.editorDisplay.editBubble);
+
+    // Current tool cursor
+    this.editorDisplay.toolCursor = new Sprite(
+      this.resources["/chainsim/img/current_tool.png"].texture
+    );
+    this.editorDisplay.toolCursor.anchor.set(0.5, 0.5);
+    this.editorDisplay.toolCursor.visible = false;
+    this.app.stage.addChild(this.editorDisplay.toolCursor);
+
+    // Initialize tool pages
+    this.editorDisplay.page1 = {
+      row1: [],
+      row2: []
+    };
+    this.editorDisplay.page2 = {
+      row1: [],
+      row2: []
+    };
+
+    // Set up page 1, row 1
+    const startX = 88;
+    const startY = 820;
+    const page1row1Colors = [
+      this.puyoSprites["red_n.png"],
+      this.puyoSprites["green_n.png"],
+      this.puyoSprites["blue_n.png"],
+      this.puyoSprites["yellow_n.png"],
+      this.puyoSprites["purple_n.png"],
+      this.puyoSprites["garbage_n.png"],
+      this.resources["/chainsim/img/editor_x.png"].texture
+    ];
+
+    for (let i = 0; i < 7; i++) {
+      const horizontalPadding = 8;
+
+      // Init sprite
+      this.editorDisplay.page1.row1[i] = new Sprite(page1row1Colors[i]);
+      this.editorDisplay.page1.row1[i].interactive = true;
+      this.editorDisplay.page1.row1[i].buttonMode = true;
+      this.editorDisplay.page1.row1[i].anchor.set(0.5, 0.5);
+      // this.editorDisplay.page1.row1[i].x = startX + (this.editorDisplay.page1.row1[i].)
+    }
   }
 
   private refreshPuyoSprites(): void {
@@ -627,8 +720,9 @@ export default class ChainsimEditor {
       const speed: number = delta * this.simulationSpeed;
 
       const duration: number = 30;
-      for (let i = 0; i < Math.round(speed); i++) {
+      for (let s = 0; s < Math.round(speed); s++) {
         if (this.gameField.hasPops) {
+          // Animate Puyo and garbage pops
           if (this.frame < duration * 0.6) {
             // Animate colored Puyos flashing
             for (const group of this.gameField.poppingGroups) {
@@ -682,12 +776,54 @@ export default class ChainsimEditor {
               }
             }
           }
+
+          // Animate Garbage Tray
+          const gAnimDuration = duration * 0.9 - duration * 0.6;
+          const centerX =
+            (this.garbageDisplayCoordinates[2] +
+              this.garbageDisplayCoordinates[3]) /
+            2;
+          if (this.frame >= duration * 0.6 && this.frame <= duration * 0.9) {
+            this.calculateGarbageIcons();
+            for (let g = 0; g < 6; g++) {
+              const distance: number =
+                this.garbageDisplayCoordinates[g] - centerX;
+              const fraction: number =
+                (this.frame - duration * 0.6) /
+                (duration * 0.9 - duration * 0.6);
+              this.garbageDisplay[g].x = centerX + distance * fraction;
+            }
+          }
+
+          // Fallback in case the garbage icons go too far
+          for (let g = 0; g < 3; g++) {
+            if (this.garbageDisplay[g].x < this.garbageDisplayCoordinates[g]) {
+              this.garbageDisplay[g].x = this.garbageDisplayCoordinates[g];
+            }
+          }
+
+          for (let g = 3; g < 6; g++) {
+            if (this.garbageDisplay[g].x > this.garbageDisplayCoordinates[g]) {
+              this.garbageDisplay[g].x = this.garbageDisplayCoordinates[g];
+            }
+          }
         }
         this.frame += 1;
       }
 
       if (this.frame >= duration * 1.2) {
         this.frame = 0;
+
+        // Ensure garbage icons are updated
+        const centerX =
+          (this.garbageDisplayCoordinates[2] +
+            this.garbageDisplayCoordinates[3]) /
+          2;
+        this.calculateGarbageIcons();
+        for (let g = 0; g < 6; g++) {
+          const distance: number = this.garbageDisplayCoordinates[g] - centerX;
+          this.garbageDisplay[g].x = centerX + distance;
+        }
 
         this.gameField.advanceState(); // "checkingPops" -> "popped"
         // this.refreshPuyoSprites();
@@ -703,6 +839,18 @@ export default class ChainsimEditor {
       }
     } else if (this.gameField.simState === "popped") {
       this.frame = 0;
+
+      // Ensure garbage icons are updated
+      const centerX =
+        (this.garbageDisplayCoordinates[2] +
+          this.garbageDisplayCoordinates[3]) /
+        2;
+      this.calculateGarbageIcons();
+      for (let g = 0; g < 6; g++) {
+        const distance: number = this.garbageDisplayCoordinates[g] - centerX;
+        this.garbageDisplay[g].x = centerX + distance;
+      }
+
       const nextState: string = this.gameField.advanceState();
       if (nextState === "checkingDrops") {
         this.refreshPuyoSprites();
@@ -711,6 +859,117 @@ export default class ChainsimEditor {
         this.refreshPuyoSprites();
         this.state = this.idleState;
       }
+    }
+  }
+
+  private calculateGarbageIcons(): string[] {
+    const garbageIcons: string[] = [
+      "spacer_n",
+      "spacer_n",
+      "spacer_n",
+      "spacer_n",
+      "spacer_n",
+      "spacer_n"
+    ];
+
+    const checkCrown = (g: number, i: number) => {
+      // Second is the starting index for garbageIcons
+      if (i < 6) {
+        if (g - 720 >= 0) {
+          garbageIcons.splice(i, 1, "crown");
+          checkCrown(g - 720, i + 1);
+        } else {
+          checkMoon(g, i);
+        }
+      }
+    };
+
+    const checkMoon = (g: number, i: number) => {
+      if (i < 6) {
+        if (g - 360 >= 0) {
+          garbageIcons.splice(i, 1, "moon");
+          checkStar(g - 360, i + 1);
+        } else {
+          checkStar(g, i);
+        }
+      }
+    };
+
+    const checkStar = (g: number, i: number) => {
+      if (i < 6) {
+        if (g - 180 >= 0) {
+          garbageIcons.splice(i, 1, "star");
+          checkRock(g - 180, i + 1);
+        } else {
+          checkRock(g, i);
+        }
+      }
+    };
+
+    const checkRock = (g: number, i: number) => {
+      if (i < 6) {
+        if (g - 30 >= 0) {
+          garbageIcons.splice(i, 1, "rock");
+          checkRock(g - 30, i + 1);
+        } else {
+          checkLine(g, i);
+        }
+      }
+    };
+
+    const checkLine = (g: number, i: number) => {
+      if (i < 6) {
+        if (g - 6 >= 0) {
+          garbageIcons.splice(i, 1, "line");
+          checkLine(g - 6, i + 1);
+        } else {
+          checkUnit(g, i);
+        }
+      }
+    };
+
+    const checkUnit = (g: number, i: number) => {
+      if (i < 6) {
+        if (g - 1 >= 0) {
+          garbageIcons.splice(i, 1, "unit");
+          checkUnit(g - 1, i + 1);
+        }
+      }
+    };
+
+    checkCrown(this.gameField.totalGarbage, 0);
+
+    for (let i = 0; i < 6; i++) {
+      this.garbageDisplay[i].texture = this.puyoSprites[
+        `${garbageIcons[i]}.png`
+      ];
+    }
+
+    return garbageIcons;
+  }
+
+  private refreshGarbageIcons(): void {
+    const centerX =
+      (this.garbageDisplayCoordinates[2] + this.garbageDisplayCoordinates[3]) /
+      2;
+
+    for (let i = 0; i < 6; i++) {
+      this.garbageDisplay[i].texture = this.puyoSprites["spacer_n.png"];
+    }
+
+    for (let g = 0; g < 6; g++) {
+      const distance: number = this.garbageDisplayCoordinates[g] - centerX;
+      this.garbageDisplay[g].x = centerX + distance;
+    }
+  }
+
+  private toggleEditorWindow(): void {
+    if (this.editorOpen === true) {
+      this.editorDisplay.editBubble.visible = false;
+      this.editorOpen = false;
+    } else {
+      this.editorDisplay.editBubble.visible = true;
+      this.editorOpen = true;
     }
   }
 }
