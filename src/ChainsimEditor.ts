@@ -25,6 +25,16 @@ interface SimulatorSettings {
   pointPuyo: number;
 }
 
+interface CurrentTool {
+  page: number;
+  item: number;
+  row: number;
+  puyo: any;
+  targetLayer: string;
+  x: number;
+  y: number;
+}
+
 const defaultSimulatorSettings: SimulatorSettings = {
   rows: 13,
   cols: 6,
@@ -88,6 +98,7 @@ export default class ChainsimEditor {
   public garbageDisplay: PIXI.Sprite[] = [];
   public scoreDisplay: PIXI.Sprite[] = [];
   public editorDisplay: { [k: string]: any } = {};
+  public editorToolDisplay: any[][][];
 
   // State trackers
   public state: any; // Function alias
@@ -98,6 +109,7 @@ export default class ChainsimEditor {
   public garbageDisplayCoordinates: number[];
   public prevState: any; // Function alias
   public editorOpen: boolean;
+  public currentTool: CurrentTool;
 
   // Data
   public gameField: Field;
@@ -203,9 +215,20 @@ export default class ChainsimEditor {
       this.loadAssets(loader, resources);
     });
 
-    this.state = this.idleState;
-
+    // Editor
     this.editorOpen = false;
+    this.currentTool = {
+      page: 0,
+      item: 6,
+      row: 1,
+      puyo: "R",
+      targetLayer: "main",
+      x: 88,
+      y: 820,
+    }
+    this.editorToolDisplay = [];
+
+    this.state = this.idleState;
 
     // Load a test matrix
     this.app.ticker.add(delta => this.gameLoop(delta));
@@ -534,59 +557,102 @@ export default class ChainsimEditor {
     this.editorDisplay.toolCursor.visible = false;
     this.app.stage.addChild(this.editorDisplay.toolCursor);
 
-    // Initialize tool pages
-    this.editorDisplay.page1 = {
-      row1: [],
-      row2: []
-    };
-    this.editorDisplay.page2 = {
-      row1: [],
-      row2: []
-    };
-
-    // Set up page 1, row 1
+    // Set up page 0, row 0
     const startX = 88;
     const startY = 820;
-    const page1row1Colors = [
-      this.puyoSprites["red_n.png"],
-      this.puyoSprites["green_n.png"],
-      this.puyoSprites["blue_n.png"],
-      this.puyoSprites["yellow_n.png"],
-      this.puyoSprites["purple_n.png"],
-      this.puyoSprites["garbage_n.png"],
-      this.resources["/chainsim/img/editor_x.png"].texture
-    ];
 
-    for (let i = 0; i < 7; i++) {
-      const horizontalPadding = 8;
+    const toolSprites = [
+      [
+        [
+          this.puyoSprites["red_n.png"],
+          this.puyoSprites["green_n.png"],
+          this.puyoSprites["blue_n.png"],
+          this.puyoSprites["yellow_n.png"],
+          this.puyoSprites["purple_n.png"],
+          this.puyoSprites["garbage_n.png"],
+          this.resources["/chainsim/img/editor_x.png"].texture
+        ],
+        [
+          this.puyoSprites["red_n.png"],
+          this.puyoSprites["green_n.png"],
+          this.puyoSprites["blue_n.png"],
+          this.puyoSprites["yellow_n.png"],
+          this.puyoSprites["purple_n.png"],
+          this.puyoSprites["garbage_n.png"],
+          this.resources["/chainsim/img/editor_x.png"].texture
+        ]
+      ]
+    ]
 
-      // Init sprite
-      this.editorDisplay.page1.row1[i] = new Sprite(page1row1Colors[i]);
-      this.editorDisplay.page1.row1[i].interactive = true;
-      this.editorDisplay.page1.row1[i].buttonMode = true;
-      this.editorDisplay.page1.row1[i].anchor.set(0.5, 0.5);
-      // this.editorDisplay.page1.row1[i].x = startX + (this.editorDisplay.page1.row1[i].)
+    const toolColors = [
+      [
+        ["R", "G", "B", "Y", "P", "J", "0"],
+        ["R", "G", "B", "Y", "P", "J", "0"]
+      ]
+    ]
+
+    const targetLayer = [
+      [
+        ["main", "main", "main", "main", "main", "main", "main"],
+        ["shadow", "shadow", "shadow", "shadow", "shadow", "shadow", "shadow"]
+      ]
+    ]
+
+    console.log(this.editorToolDisplay);
+    for (let p = 0; p < toolSprites.length; p++) {
+      this.editorToolDisplay[p] = [];
+      for (let r = 0; r < toolSprites[p].length; r++) {
+        this.editorToolDisplay[p][r] = [];
+        for (let i = 0; i < toolSprites[p][r].length; i++) {
+          const horizontalPadding = 8;
+          const verticalPadding = 8;
+
+          // Init sprite
+          this.editorToolDisplay[p][r][i] = new Sprite(toolSprites[p][r][i]);
+          this.editorToolDisplay[p][r][i].interactive = true;
+          this.editorToolDisplay[p][r][i].buttonMode = true;
+          this.editorToolDisplay[p][r][i].anchor.set(0.5, 0.5);
+          this.editorToolDisplay[p][r][i].x = startX + (this.editorToolDisplay[p][r][i].width + horizontalPadding) * i;
+          this.editorToolDisplay[p][r][i].y = startY + (this.editorToolDisplay[p][r][i].height + verticalPadding) * r;
+          this.editorToolDisplay[p][r][i].on("pointerdown", () => {
+            this.currentTool.page = p;
+            this.currentTool.item = i;
+            this.currentTool.puyo = toolColors[p][r][i];
+            this.currentTool.targetLayer = targetLayer[p][r][i];
+            this.currentTool.x = this.editorToolDisplay[p][r][i].x;
+            this.currentTool.y = this.editorToolDisplay[p][r][i].y;
+          });
+
+          if (targetLayer[p][r][i] === "shadow") {
+            this.editorToolDisplay[p][r][i].alpha = 0.4;
+          }
+
+          this.editorToolDisplay[p][r][i].visible = false;
+          this.app.stage.addChild(this.editorToolDisplay[p][r][i]);
+        }
+      }
     }
   }
 
   private refreshPuyoSprites(): void {
     for (let x = 0; x < this.simulatorSettings.cols; x++) {
       for (let y = 0; y < this.simulatorSettings.rows; y++) {
-        // console.log(`${this.gameField.matrix[x][y].name}_${this.gameField.matrix[x][y].connections}.png`);
-        this.puyoDisplay[x][y].texture = this.puyoSprites[
-          `${this.gameField.matrix[x][y].name}_${
-            this.gameField.matrix[x][y].connections
-          }.png`
-        ];
-        this.puyoDisplay[x][y].anchor.set(0.5);
-        this.puyoDisplay[x][y].x = this.coordArray[x][y].x;
-        this.puyoDisplay[x][y].y = this.coordArray[x][y].y;
-        this.puyoDisplay[x][y].alpha = 1;
-        this.puyoDisplay[x][y].scale.x = 1;
-        this.puyoDisplay[x][y].scale.y = 1;
-        this.puyoStates[x][y] = "idle";
-        this.puyoDropSpeed[x][y] = 0;
-        this.puyoBounceFrames[x][y] = 0;
+        if (this.puyoSprites) {
+          this.puyoDisplay[x][y].texture = this.puyoSprites[
+            `${this.gameField.matrix[x][y].name}_${
+              this.gameField.matrix[x][y].connections
+            }.png`
+          ];
+          this.puyoDisplay[x][y].anchor.set(0.5);
+          this.puyoDisplay[x][y].x = this.coordArray[x][y].x;
+          this.puyoDisplay[x][y].y = this.coordArray[x][y].y;
+          this.puyoDisplay[x][y].alpha = 1;
+          this.puyoDisplay[x][y].scale.x = 1;
+          this.puyoDisplay[x][y].scale.y = 1;
+          this.puyoStates[x][y] = "idle";
+          this.puyoDropSpeed[x][y] = 0;
+          this.puyoBounceFrames[x][y] = 0;
+        }
       }
     }
   }
@@ -967,9 +1033,28 @@ export default class ChainsimEditor {
     if (this.editorOpen === true) {
       this.editorDisplay.editBubble.visible = false;
       this.editorOpen = false;
+      for (const page of this.editorToolDisplay) {
+        for (const row of page) {
+          for (const item of row) {
+            item.visible = false;
+          }
+        }
+      }
     } else {
       this.editorDisplay.editBubble.visible = true;
       this.editorOpen = true;
+
+      for (let p = 0; p < this.editorToolDisplay.length; p++) {
+        for (const row of this.editorToolDisplay[p]) {
+          for (const item of row) {
+            if (p === this.currentTool.page) {
+              item.visible = true;
+            } else {
+              item.visible = false;
+            }
+          }
+        }
+      }
     }
   }
 }
