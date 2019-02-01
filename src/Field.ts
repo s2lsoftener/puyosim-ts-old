@@ -557,6 +557,7 @@ export default class Field {
     for (let x: number = 0; x < this.settings.cols; x++) {
       for (let y: number = 0; y < this.settings.rows; y++) {
         this.dropDistances[x][y] = 0;
+        this.garbageClearCountMatrix[x][y] = 0;
       }
     }
     this.droppedMatrix = [];

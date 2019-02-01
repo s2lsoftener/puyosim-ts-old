@@ -101,6 +101,8 @@ export default class ChainsimEditor {
   public editorToolDisplay: any[][][];
 
   // State trackers
+  public simulatorMode: string;
+  public dragEdit: boolean;
   public state: any; // Function alias
   public frame: number;
   public puyoStates: string[][];
@@ -175,6 +177,7 @@ export default class ChainsimEditor {
     this.garbageDisplayCoordinates = [];
 
     // Create app and append to HTML
+    this.dragEdit = false;
     this.app = new PIXI.Application(
       this.gameSettings.width,
       this.gameSettings.height,
@@ -186,6 +189,13 @@ export default class ChainsimEditor {
     );
     this.app.view.style.width = `${this.gameSettings.width * 0.8}px`;
     this.app.view.style.height = `${this.gameSettings.height * 0.8}px`;
+    this.app.stage.interactive = true;
+    this.app.stage.on("pointerdown", () => {
+      this.dragEdit = true;
+    })
+    this.app.stage.on("pointerup", () => {
+      this.dragEdit = false;
+    })
     targetDiv.appendChild(this.app.view);
 
     // Create loader and load resources
@@ -229,6 +239,7 @@ export default class ChainsimEditor {
     this.editorToolDisplay = [];
 
     this.state = this.idleState;
+    this.simulatorMode = "edit"; // "edit", "play"
 
     // Load a test matrix
     this.app.ticker.add(delta => this.gameLoop(delta));
@@ -361,6 +372,15 @@ export default class ChainsimEditor {
         this.puyoDisplay[x][y].x = this.coordArray[x][y].x;
         this.puyoDisplay[x][y].y = this.coordArray[x][y].y;
         this.puyoDisplay[x][y].interactive = true;
+        this.puyoDisplay[x][y].on("pointerdown", () => {
+          this.dragEdit = true;
+          if (this.currentTool.targetLayer === "main" && this.state === this.idleState) {
+            this.gameField.matrix[x][y].p = this.currentTool.puyo;
+            this.gameField.matrix[x][y].x = x;
+            this.gameField.matrix[x][y].y = y;
+          }
+          this.refreshPuyoSprites();
+        });
         this.app.stage.addChild(this.puyoDisplay[x][y]);
       }
     }
@@ -384,19 +404,7 @@ export default class ChainsimEditor {
     });
     this.fieldControls.reset.on("pointerup", () => {
       this.fieldControls.reset.texture = this.fieldSprites["btn_reset.png"];
-
-      this.autoAdvance = false;
-      this.simulationSpeed = 1;
-      this.frame = 0;
-      this.gameField.updateFieldMatrix(this.gameField.inputMatrix); // Reset to inputMatrix
-      this.gameField.refreshLinkData();
-      this.gameField.refreshPuyoPositionData();
-      this.gameField.setConnectionData();
-      this.gameField.simState = "idle";
-      this.refreshPuyoSprites();
-      this.refreshGarbageIcons();
-
-      this.state = this.idleState;
+      this.resetFieldAndState();
     });
     this.fieldControls.reset.on("pointerupoutside", () => {
       this.fieldControls.reset.texture = this.fieldSprites["btn_reset.png"];
@@ -484,6 +492,19 @@ export default class ChainsimEditor {
     this.app.stage.addChild(this.fieldControls.auto);
     i += 1;
 
+    this.fieldDisplay.disableTouchBehind = new Sprite(
+      this.resources["/chainsim/img/touch_disabler.png"].texture
+    );
+    this.fieldDisplay.disableTouchBehind.x = 0;
+    this.fieldDisplay.disableTouchBehind.y = 0;
+    this.fieldDisplay.disableTouchBehind.width = this.gameSettings.width;
+    this.fieldDisplay.disableTouchBehind.height = this.gameSettings.height;
+    this.app.stage.addChild(this.fieldDisplay.disableTouchBehind);
+    this.fieldDisplay.disableTouchBehind.interactive = false;
+    this.fieldDisplay.disableTouchBehind.on("pointerup", () => {
+      this.toggleEditorWindow();
+    })
+
     this.fieldControls.edit = new Sprite(this.fieldSprites["btn_edit.png"]);
     this.fieldControls.edit.x = 490;
     this.fieldControls.edit.y = startY + i * height;
@@ -496,6 +517,9 @@ export default class ChainsimEditor {
     });
     this.fieldControls.edit.on("pointerup", () => {
       this.fieldControls.edit.texture = this.fieldSprites["btn_edit.png"];
+      if (this.editorOpen === false) {
+        this.resetFieldAndState();
+      }
       this.toggleEditorWindow();
     });
     this.fieldControls.edit.on("pointerupoutside", () => {
@@ -503,15 +527,6 @@ export default class ChainsimEditor {
     });
     this.app.stage.addChild(this.fieldControls.edit);
 
-    this.fieldDisplay.disableTouchBehind = new Sprite(
-      this.resources["/chainsim/img/touch_disabler.png"].texture
-    );
-    this.fieldDisplay.disableTouchBehind.x = 0;
-    this.fieldDisplay.disableTouchBehind.y = 0;
-    this.fieldDisplay.disableTouchBehind.width = this.gameSettings.width;
-    this.fieldDisplay.disableTouchBehind.height = this.gameSettings.height;
-    this.app.stage.addChild(this.fieldDisplay.disableTouchBehind);
-    this.fieldDisplay.disableTouchBehind.interactive = false;
   }
 
   private initGarbageDisplay(): void {
@@ -655,6 +670,21 @@ export default class ChainsimEditor {
         }
       }
     }
+  }
+
+  private resetFieldAndState(): void {
+    this.autoAdvance = false;
+    this.simulationSpeed = 1;
+    this.frame = 0;
+    this.gameField.updateFieldMatrix(this.gameField.inputMatrix); // Reset to inputMatrix
+    this.gameField.refreshLinkData();
+    this.gameField.refreshPuyoPositionData();
+    this.gameField.setConnectionData();
+    this.gameField.simState = "idle";
+    this.refreshPuyoSprites();
+    this.refreshGarbageIcons();
+
+    this.state = this.idleState;
   }
 
   private gameLoop(delta: number): void {
@@ -1033,6 +1063,8 @@ export default class ChainsimEditor {
     if (this.editorOpen === true) {
       this.editorDisplay.editBubble.visible = false;
       this.editorOpen = false;
+      this.fieldDisplay.disableTouchBehind.interactive = false;
+
       for (const page of this.editorToolDisplay) {
         for (const row of page) {
           for (const item of row) {
@@ -1043,6 +1075,7 @@ export default class ChainsimEditor {
     } else {
       this.editorDisplay.editBubble.visible = true;
       this.editorOpen = true;
+      this.fieldDisplay.disableTouchBehind.interactive = true;
 
       for (let p = 0; p < this.editorToolDisplay.length; p++) {
         for (const row of this.editorToolDisplay[p]) {
