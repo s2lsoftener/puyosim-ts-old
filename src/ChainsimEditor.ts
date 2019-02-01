@@ -837,18 +837,21 @@ export default class ChainsimEditor {
         this.frame = 0;
 
         const nextState: string = this.gameField.advanceState();
-        console.log(this.gameField.simState);
+        console.log(this.gameField.chainLength);
         // if (nextState === "checkingPops" && this.autoAdvance === true) {
-        if (nextState === "checkingPops" && this.autoAdvance === true) {
+        if (nextState === "checkingPops") {
           console.log(nextState);
           this.refreshPuyoSprites();
           this.state = this.animatePops;
-        } else if (nextState === "dropped" && this.autoAdvance === true) {
-          console.log(nextState);
-          this.gameField.advanceState();
+        } else if (nextState === "dropped") {
           console.log(nextState);
           this.refreshPuyoSprites();
-          this.state = this.animatePops;
+          if (this.autoAdvance === true) {
+            this.gameField.advanceState();
+            this.state = this.animatePops;
+          } else {
+            this.state = this.idleState;
+          }
         } else {
           this.gameField.simState = "dropped";
           this.refreshPuyoSprites();
@@ -858,16 +861,19 @@ export default class ChainsimEditor {
     } else if (this.gameField.simState === "dropped") {
       this.frame = 0;
       const nextState: string = this.gameField.advanceState();
-      if (nextState === "checkingPops" && this.autoAdvance === true) {
+      if (nextState === "checkingPops") {
         console.log(nextState);
         this.refreshPuyoSprites();
         this.state = this.animatePops;
-      } else if (nextState === "dropped" && this.autoAdvance === true) {
-        console.log(nextState);
-        this.gameField.advanceState();
+      } else if (nextState === "dropped") {
         console.log(nextState);
         this.refreshPuyoSprites();
-        this.state = this.animatePops;
+        if (this.autoAdvance === true) {
+          this.gameField.advanceState();
+          this.state = this.animatePops;
+        } else {
+          this.state = this.idleState;
+        }
       } else {
         this.gameField.simState = "dropped";
         this.refreshPuyoSprites();
