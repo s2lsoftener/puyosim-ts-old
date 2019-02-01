@@ -727,8 +727,6 @@ export default class ChainsimEditor {
     this.autoAdvance = false;
     this.simulationSpeed = 1;
     this.frame = 0;
-    this.gameField.poppingGroups = [];
-    this.gameField.poppingColors = [];
     this.gameField.chainLength = 0;
     this.gameField.linkScore = 0;
     this.gameField.totalScore = 0;
