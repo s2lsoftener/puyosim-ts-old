@@ -1,4 +1,4 @@
-import { transposeMatrix } from "./helper";
+import { createUniformArray, transposeMatrix } from "./helper";
 import { Puyo, PuyoType } from "./Puyo";
 
 interface SimulatorSettings {
@@ -83,7 +83,6 @@ export default class Field {
 
     this.poppingGroups = [];
     this.poppingColors = [];
-    this.garbageClearCountMatrix = [];
     this.chainLength = 0;
     this.linkScore = 0;
     this.totalScore = 0;
@@ -99,6 +98,8 @@ export default class Field {
     this.matrix = [];
     this.dropDistances = [];
     this.droppedMatrix = [];
+    this.garbageClearCountMatrix = createUniformArray(0, this.settings.cols, this.settings.rows);
+    console.log(this.garbageClearCountMatrix);
     for (let x: number = 0; x < this.settings.cols; x++) {
       this.matrix[x] = [];
       this.dropDistances[x] = [];
@@ -396,11 +397,9 @@ export default class Field {
   }
 
   public checkForGarbagePops(): void {
-    const garbageClearCountMatrix: number[][] = [];
     for (let x = 0; x < this.settings.cols; x++) {
-      garbageClearCountMatrix[x] = [];
       for (let y = 0; y < this.settings.rows; y++) {
-        garbageClearCountMatrix[x][y] = 0;
+        this.garbageClearCountMatrix[x][y] = 0;
       }
     }
 
@@ -414,14 +413,14 @@ export default class Field {
             puyo.y > this.settings.hiddenRows - 1 &&
             this.matrix[puyo.x][puyo.y - 1].isGarbage
           ) {
-            garbageClearCountMatrix[puyo.x][puyo.y - 1] += 1;
+            this.garbageClearCountMatrix[puyo.x][puyo.y - 1] += 1;
           }
         } else if (this.settings.garbageInHiddenRowBehavior === "COMPILE") {
           if (
             puyo.y > this.settings.hiddenRows &&
             this.matrix[puyo.x][puyo.y - 1].isGarbage
           ) {
-            garbageClearCountMatrix[puyo.x][puyo.y - 1] += 1;
+            this.garbageClearCountMatrix[puyo.x][puyo.y - 1] += 1;
           }
         }
 
@@ -430,12 +429,12 @@ export default class Field {
           puyo.y < this.settings.rows - 1 &&
           this.matrix[puyo.x][puyo.y + 1].isGarbage
         ) {
-          garbageClearCountMatrix[puyo.x][puyo.y + 1] += 1;
+          this.garbageClearCountMatrix[puyo.x][puyo.y + 1] += 1;
         }
 
         // Check left
         if (puyo.x > 0 && this.matrix[puyo.x - 1][puyo.y].isGarbage) {
-          garbageClearCountMatrix[puyo.x - 1][puyo.y] += 1;
+          this.garbageClearCountMatrix[puyo.x - 1][puyo.y] += 1;
         }
 
         // Check right
@@ -443,12 +442,10 @@ export default class Field {
           puyo.x < this.settings.cols - 1 &&
           this.matrix[puyo.x + 1][puyo.y].isGarbage
         ) {
-          garbageClearCountMatrix[puyo.x + 1][puyo.y] += 1;
+          this.garbageClearCountMatrix[puyo.x + 1][puyo.y] += 1;
         }
       }
     }
-
-    this.garbageClearCountMatrix = garbageClearCountMatrix;
   }
 
   public calculateLinkScore(): void {
@@ -549,7 +546,6 @@ export default class Field {
   public refreshLinkData(): void {
     this.poppingGroups = [];
     this.poppingColors = [];
-    this.garbageClearCountMatrix = [];
     this.linkScore = 0;
     this.linkBonusMultiplier = 0;
     this.linkPuyoMultiplier = 0;
