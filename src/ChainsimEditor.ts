@@ -835,13 +835,18 @@ export default class ChainsimEditor {
 
       if (stillDropping === false) {
         this.frame = 0;
-        this.gameField.advanceState(); // Advance state to "dropped" (set the field.)
-        // this.refreshPuyoSprites();
-
-        console.log(this.gameField.simState);
 
         const nextState: string = this.gameField.advanceState();
+        console.log(this.gameField.simState);
+        // if (nextState === "checkingPops" && this.autoAdvance === true) {
         if (nextState === "checkingPops" && this.autoAdvance === true) {
+          console.log(nextState);
+          this.refreshPuyoSprites();
+          this.state = this.animatePops;
+        } else if (nextState === "dropped" && this.autoAdvance === true) {
+          console.log(nextState);
+          this.gameField.advanceState();
+          console.log(nextState);
           this.refreshPuyoSprites();
           this.state = this.animatePops;
         } else {
@@ -854,6 +859,13 @@ export default class ChainsimEditor {
       this.frame = 0;
       const nextState: string = this.gameField.advanceState();
       if (nextState === "checkingPops" && this.autoAdvance === true) {
+        console.log(nextState);
+        this.refreshPuyoSprites();
+        this.state = this.animatePops;
+      } else if (nextState === "dropped" && this.autoAdvance === true) {
+        console.log(nextState);
+        this.gameField.advanceState();
+        console.log(nextState);
         this.refreshPuyoSprites();
         this.state = this.animatePops;
       } else {

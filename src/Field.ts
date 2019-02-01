@@ -144,9 +144,7 @@ export default class Field {
       // shift the cells down to the new bottom of the matrix
       for (let x: number = 0; x < newMatrix.length; x++) {
         for (let y: number = 0; y < newMatrix[x].length; y++) {
-          this.matrix[x][
-            y + this.settings.rows - newMatrix[x].length
-          ] = new Puyo(
+          this.matrix[x][y + this.settings.rows - newMatrix[x].length] = new Puyo(
             newMatrix[x][y],
             x,
             y + this.settings.rows - newMatrix[x].length
@@ -175,11 +173,7 @@ export default class Field {
       for (let x: number = 0; x < this.settings.cols; x++) {
         for (let y: number = 0; y < this.settings.rows; y++) {
           if (newMatrix.length <= this.settings.cols && x < newMatrix.length) {
-            this.matrix[x][y] = this.matrix[x][y] = new Puyo(
-              newMatrix[x][y],
-              x,
-              y
-            );
+            this.matrix[x][y] = this.matrix[x][y] = new Puyo(newMatrix[x][y], x, y);
           }
         }
       }
@@ -220,12 +214,8 @@ export default class Field {
       });
 
       slices.forEach(slice => {
-        const emptyCells: Puyo[] = slice.filter(
-          puyo => puyo.p === PuyoType.None
-        );
-        const PuyoCells: Puyo[] = slice.filter(
-          puyo => puyo.p !== PuyoType.None
-        );
+        const emptyCells: Puyo[] = slice.filter(puyo => puyo.p === PuyoType.None);
+        const PuyoCells: Puyo[] = slice.filter(puyo => puyo.p !== PuyoType.None);
         newColumn = [...newColumn, ...emptyCells, ...PuyoCells];
       });
 
@@ -345,10 +335,7 @@ export default class Field {
           this.matrix[x][y].connections = "n";
         } else if (this.dropDistances[x][y] > 0) {
           this.matrix[x][y].connections = "n";
-        } else if (
-          this.matrix[x][y].p === PuyoType.None ||
-          this.matrix[x][y].isGarbage
-        ) {
+        } else if (this.matrix[x][y].p === PuyoType.None || this.matrix[x][y].isGarbage) {
           this.matrix[x][y].connections = "n";
         } else {
           let connection: string = "";
@@ -409,26 +396,17 @@ export default class Field {
         // SEGA behavior: garbage can be cleared while they're still in the hidden rows if Puyos pop underneath
         // COMPILE behavior: garbage can't be cleared while they're in the hidden rows
         if (this.settings.garbageInHiddenRowBehavior === "SEGA") {
-          if (
-            puyo.y > this.settings.hiddenRows - 1 &&
-            this.matrix[puyo.x][puyo.y - 1].isGarbage
-          ) {
+          if (puyo.y > this.settings.hiddenRows - 1 && this.matrix[puyo.x][puyo.y - 1].isGarbage) {
             this.garbageClearCountMatrix[puyo.x][puyo.y - 1] += 1;
           }
         } else if (this.settings.garbageInHiddenRowBehavior === "COMPILE") {
-          if (
-            puyo.y > this.settings.hiddenRows &&
-            this.matrix[puyo.x][puyo.y - 1].isGarbage
-          ) {
+          if (puyo.y > this.settings.hiddenRows && this.matrix[puyo.x][puyo.y - 1].isGarbage) {
             this.garbageClearCountMatrix[puyo.x][puyo.y - 1] += 1;
           }
         }
 
         // Check down
-        if (
-          puyo.y < this.settings.rows - 1 &&
-          this.matrix[puyo.x][puyo.y + 1].isGarbage
-        ) {
+        if (puyo.y < this.settings.rows - 1 && this.matrix[puyo.x][puyo.y + 1].isGarbage) {
           this.garbageClearCountMatrix[puyo.x][puyo.y + 1] += 1;
         }
 
@@ -438,10 +416,7 @@ export default class Field {
         }
 
         // Check right
-        if (
-          puyo.x < this.settings.cols - 1 &&
-          this.matrix[puyo.x + 1][puyo.y].isGarbage
-        ) {
+        if (puyo.x < this.settings.cols - 1 && this.matrix[puyo.x + 1][puyo.y].isGarbage) {
           this.garbageClearCountMatrix[puyo.x + 1][puyo.y] += 1;
         }
       }
@@ -453,32 +428,22 @@ export default class Field {
     for (const group of this.poppingGroups) {
       if (this.settings.puyoToPop < 4) {
         if (group.length >= 11 - (4 - this.settings.puyoToPop)) {
-          linkGroupBonus += this.settings.groupBonus[
-            this.settings.groupBonus.length - 1
-          ];
+          linkGroupBonus += this.settings.groupBonus[this.settings.groupBonus.length - 1];
         } else {
-          linkGroupBonus += this.settings.groupBonus[
-            group.length - this.settings.puyoToPop
-          ];
+          linkGroupBonus += this.settings.groupBonus[group.length - this.settings.puyoToPop];
         }
       } else {
         if (group.length >= 11) {
-          linkGroupBonus += this.settings.groupBonus[
-            this.settings.groupBonus.length - 1
-          ];
+          linkGroupBonus += this.settings.groupBonus[this.settings.groupBonus.length - 1];
         } else {
           linkGroupBonus += this.settings.groupBonus[group.length - 4];
         }
       }
     }
 
-    const linkColorBonus: number = this.settings.colorBonus[
-      this.poppingColors.length - 1
-    ];
+    const linkColorBonus: number = this.settings.colorBonus[this.poppingColors.length - 1];
 
-    const linkChainPower: number = this.settings.chainPower[
-      this.chainLength - 1
-    ];
+    const linkChainPower: number = this.settings.chainPower[this.chainLength - 1];
 
     let linkPuyoCleared: number = 0;
     for (const group of this.poppingGroups) {
@@ -599,7 +564,7 @@ export default class Field {
         this.setConnectionData();
         break;
       case "checkingDrops":
-        if (this.hasDrops) {
+        if (this.hasDrops === true) {
           this.simState = "dropped";
           this.dropPuyos();
           this.refreshPuyoPositionData();
@@ -610,9 +575,10 @@ export default class Field {
           this.simState = "dropped";
           this.refreshPuyoPositionData();
           this.setConnectionData();
-          // Continue down to next switch statement
+          console.log("already dropped");
         }
       case "dropped":
+        console.log("Checking pops");
         this.checkForColorPops();
         this.checkForGarbagePops();
         if (this.hasPops) {
@@ -657,9 +623,8 @@ export default class Field {
     }
     console.log(urlString);
 
-    const url = `https://puyonexus.com/chainsim/?w=${
-      this.settings.cols
-    }&h=${this.settings.rows - this.settings.hiddenRows}&chain=${urlString}`;
+    const url = `https://puyonexus.com/chainsim/?w=${this.settings.cols}&h=${this.settings.rows -
+      this.settings.hiddenRows}&chain=${urlString}`;
     window.open(url);
   }
 }
