@@ -101,6 +101,7 @@ export default class ChainsimEditor {
   public scoreDisplay: PIXI.Sprite[] = [];
   public editorDisplay: { [k: string]: any } = {};
   public editorToolDisplay: any[][][];
+  public nextPuyoPairs: PIXI.Sprite[][] = [];
 
   // State trackers
   public simulatorMode: string;
@@ -115,12 +116,14 @@ export default class ChainsimEditor {
   public prevState: any; // Function alias
   public editorOpen: boolean;
   public currentTool: CurrentTool;
+  public currentNextPuyos: string[][];
 
   // Data
   public gameField: Field;
 
   // Helper
   public coordArray: any[][];
+  public nextCoord: any[];
 
   constructor(targetDiv: HTMLElement) {
     this.gameSettings = {
@@ -141,7 +144,7 @@ export default class ChainsimEditor {
     );
     this.frame = 0;
 
-    // Helper properties
+    // Placement properties
     this.coordArray = [];
     for (let x = 0; x < this.simulatorSettings.cols; x++) {
       this.coordArray[x] = [];
@@ -152,6 +155,9 @@ export default class ChainsimEditor {
         };
       }
     }
+
+    this.nextCoord = [{ x: 478, y: 196 }, { x: 530, y: 328 }, { x: 530, y: 488 }];
+
     this.puyoStates = createUniformArray(
       "idle",
       this.simulatorSettings.cols,
@@ -249,8 +255,10 @@ export default class ChainsimEditor {
     };
     this.editorToolDisplay = [];
 
+    // Game states
     this.state = this.idleState;
     this.simulatorMode = "edit"; // "edit", "play"
+    this.currentNextPuyos = [["R", "G"], ["B", "Y"], ["P", "R"]];
 
     // Load a test matrix
     this.app.ticker.add(delta => this.gameLoop(delta));
@@ -275,6 +283,7 @@ export default class ChainsimEditor {
     this.initFieldControls();
     this.initGarbageDisplay();
     this.initChainCounter();
+    this.initNextPuyos();
     this.initToolDisplay();
   }
 
@@ -617,7 +626,7 @@ export default class ChainsimEditor {
 
     this.chainCountDisplay.chainText = new Sprite(this.chainCountSprites["chain_text.png"]);
     this.chainCountDisplay.chainText.x = startX + 84;
-    this.chainCountDisplay.chainText.y = startY + 10;
+    this.chainCountDisplay.chainText.y = startY + 8;
     this.chainCountDisplay.chainText.origY = this.chainCountDisplay.chainText.y;
     this.chainCountDisplay.chainText.scale.set(0.85, 0.85);
     this.chainCountDisplay.chainText.visible = false;
@@ -625,6 +634,57 @@ export default class ChainsimEditor {
     this.app.stage.addChild(this.chainCountDisplay.firstDigit);
     this.app.stage.addChild(this.chainCountDisplay.secondDigit);
     this.app.stage.addChild(this.chainCountDisplay.chainText);
+  }
+
+  private initNextPuyos(): void {
+    this.nextPuyoPairs = [[], [], []];
+
+    // Get colors from currentNextPuyos
+    const colorNames = [["spacer", "spacer"], ["spacer", "spacer"], ["spacer", "spacer"]];
+
+    for (let p = 0; p < colorNames.length; p++) {
+      for (let i = 0; i < 2; i++) {
+        switch (this.currentNextPuyos[p][i]) {
+          case "R":
+            colorNames[p][i] = "red";
+            break;
+          case "G":
+            colorNames[p][i] = "green";
+            break;
+          case "B":
+            colorNames[p][i] = "blue";
+            break;
+          case "Y":
+            colorNames[p][i] = "yellow";
+            break;
+          case "P":
+            colorNames[p][i] = "purple";
+            break;
+        }
+      }
+    }
+
+    console.log(colorNames);
+
+    for (let p = 0; p < colorNames.length; p++) {
+      this.nextPuyoPairs[p][0] = new Sprite(this.puyoSprites[`${colorNames[p][0]}_n.png`]);
+      this.nextPuyoPairs[p][1] = new Sprite(this.puyoSprites[`${colorNames[p][1]}_n.png`]);
+      if (p > 0) {
+        this.nextPuyoPairs[p][0].scale.set(0.8, 0.8);
+        this.nextPuyoPairs[p][1].scale.set(0.8, 0.8);
+      }
+      this.nextPuyoPairs[p][0].position.set(
+        this.nextCoord[p].x,
+        this.nextCoord[p].y + this.nextPuyoPairs[p][0].height
+      );
+      this.nextPuyoPairs[p][1].position.set(this.nextCoord[p].x, this.nextCoord[p].y);
+
+      this.nextPuyoPairs[p][0].mask = this.fieldDisplay.nextWindowMask;
+      this.nextPuyoPairs[p][1].mask = this.fieldDisplay.nextWindowMask;
+
+      this.app.stage.addChild(this.nextPuyoPairs[p][0]);
+      this.app.stage.addChild(this.nextPuyoPairs[p][1]);
+    }
   }
 
   private initToolDisplay(): void {
@@ -934,7 +994,7 @@ export default class ChainsimEditor {
     if (this.gameField.simState === "checkingPops") {
       const speed: number = delta * this.simulationSpeed;
 
-      const duration: number = 30;
+      const duration: number = 40;
       for (let s = 0; s < Math.round(speed); s++) {
         if (this.gameField.hasPops) {
           // Animate Puyo and garbage pops
@@ -1003,7 +1063,7 @@ export default class ChainsimEditor {
             this.chainCountDisplay.secondDigit.y =
               this.chainCountDisplay.defaultPos.y - 16 * ((-1 / r ** 2) * (t - r) ** 2 + 1);
             this.chainCountDisplay.chainText.y =
-              this.chainCountDisplay.defaultPos.y - 16 * ((-1 / r ** 2) * (t - r) ** 2 + 1);
+              this.chainCountDisplay.defaultPos.y + 8 - 16 * ((-1 / r ** 2) * (t - r) ** 2 + 1);
           }
 
           // Animate Garbage Tray
@@ -1053,9 +1113,11 @@ export default class ChainsimEditor {
         const nextState: string = this.gameField.advanceState();
         if (nextState === "checkingDrops") {
           this.refreshPuyoSprites();
+          this.updateScoreDisplay();
           this.state = this.animateFieldDrops;
         } else {
           this.refreshPuyoSprites();
+          this.updateScoreDisplay();
           this.state = this.idleState;
         }
       }
@@ -1078,6 +1140,39 @@ export default class ChainsimEditor {
         this.refreshPuyoSprites();
         this.state = this.idleState;
       }
+    }
+  }
+
+  private animateNextWindow(delta: number): void {
+    const duration = 8;
+    this.frame += 1;
+
+    // this.nextCoord = [{ x: 478, y: 196 }, { x: 530, y: 328 }, { x: 530, y: 488 }];
+    // Distances to move each pair
+    const moveY = [
+      this.nextCoord[1].y - this.nextCoord[0].y,
+      this.nextCoord[1].y - this.nextCoord[0].y,
+      this.nextCoord[2].y - this.nextCoord[1].y
+    ]
+
+    // First pair
+    this.nextPuyoPairs[0][0].y = this.nextCoord[0].y + this.nextPuyoPairs[0][0].height - ((moveY[0] + 20) / duration * this.frame);
+    this.nextPuyoPairs[0][1].y = this.nextCoord[0].y - (moveY[0] / duration * this.frame);
+
+    // Second pair. 0.8 from sprite scaling in initNextPuyos()
+    this.nextPuyoPairs[1][0].y = this.nextCoord[1].y + this.nextPuyoPairs[0][0].height * 0.8 - ((moveY[0] - (this.nextPuyoPairs[0][0].height - this.nextPuyoPairs[0][0].height * 0.8)) / duration * this.frame);
+    this.nextPuyoPairs[1][1].y = this.nextCoord[1].y - (moveY[1] / duration * this.frame);
+    this.nextPuyoPairs[1][0].scale.set(0.8 + (0.2 / duration * this.frame), 0.8 + (0.2 / duration * this.frame));
+    this.nextPuyoPairs[1][1].scale.set(0.8 + (0.2 / duration * this.frame), 0.8 + (0.2 / duration * this.frame))
+    this.nextPuyoPairs[1][0].x = this.nextCoord[1].x - ((this.nextCoord[1].x - this.nextCoord[0].x) / duration * this.frame);
+    this.nextPuyoPairs[1][1].x = this.nextCoord[1].x - ((this.nextCoord[1].x - this.nextCoord[0].x) / duration * this.frame);
+
+    // Third pair
+    this.nextPuyoPairs[2][0].y = this.nextCoord[2].y + this.nextPuyoPairs[2][0].height - (moveY[2] / duration * this.frame);
+    this.nextPuyoPairs[2][1].y = this.nextCoord[2].y - (moveY[2] / duration * this.frame);
+
+    if (this.frame === 8) {
+      this.state = this.idleState;
     }
   }
 
