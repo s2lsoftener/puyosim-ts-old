@@ -749,6 +749,7 @@ export default class ChainsimEditor {
     this.gameField.simState = "idle";
     this.refreshPuyoSprites();
     this.refreshGarbageIcons();
+    this.updateScoreDisplay();
 
     this.state = this.idleState;
   }
@@ -765,6 +766,7 @@ export default class ChainsimEditor {
     }
     if (this.gameField.simState === "checkingPops") {
       this.refreshPuyoSprites();
+      this.updateScoreDisplay();
       this.state = this.animatePops;
       console.log(JSON.parse(JSON.stringify(this.gameField.dropDistances)));
     }
@@ -846,12 +848,14 @@ export default class ChainsimEditor {
         if (nextState === "checkingPops") {
           console.log(nextState);
           this.refreshPuyoSprites();
+          this.updateScoreDisplay();
           this.state = this.animatePops;
         } else if (nextState === "dropped") {
           console.log(nextState);
           this.refreshPuyoSprites();
           if (this.autoAdvance === true) {
             this.gameField.advanceState();
+            this.updateScoreDisplay();
             this.state = this.animatePops;
           } else {
             this.state = this.idleState;
@@ -868,12 +872,14 @@ export default class ChainsimEditor {
       if (nextState === "checkingPops") {
         console.log(nextState);
         this.refreshPuyoSprites();
+        this.updateScoreDisplay();
         this.state = this.animatePops;
       } else if (nextState === "dropped") {
         console.log(nextState);
         this.refreshPuyoSprites();
         if (this.autoAdvance === true) {
           this.gameField.advanceState();
+          this.updateScoreDisplay();
           this.state = this.animatePops;
         } else {
           this.state = this.idleState;
@@ -904,6 +910,7 @@ export default class ChainsimEditor {
               }
             }
           } else if (this.frame >= duration * 0.6) {
+            this.showChainMultiplier();
             // Change colored Puyos to burst sprite
             if (this.frame < duration) {
               for (const group of this.gameField.poppingGroups) {
@@ -1156,7 +1163,7 @@ export default class ChainsimEditor {
     }
   }
 
-  private setScoreDisplay(): void {
+  private updateScoreDisplay(): void {
     let scoreText: string = this.gameField.totalScore.toString();
 
     const missingDigits: number = 8 - scoreText.length;
@@ -1165,6 +1172,48 @@ export default class ChainsimEditor {
       scoreText = "0" + scoreText;
     }
 
-    
+    for (let i = 0; i < 8; i++) {
+      this.scoreDisplay[i].visible = true;
+      this.scoreDisplay[i].texture = this.scoreCountSprites[`score_${scoreText[i]}.png`];
+    }
+  }
+
+  private showChainMultiplier(): void {
+    let puyoMultiplierText: string = this.gameField.linkPuyoMultiplier.toString();
+    let bonusMultiplierText: string = this.gameField.linkBonusMultiplier.toString();
+
+    const missingDigits = {
+      puyo: 3 - puyoMultiplierText.length,
+      bonus: 3 - bonusMultiplierText.length
+    }
+
+    for (let i = 0; i < missingDigits.puyo; i++) {
+      puyoMultiplierText = "X" + puyoMultiplierText;
+    }
+
+    for (let i = 0; i < missingDigits.bonus; i++) {
+      bonusMultiplierText = "X" + bonusMultiplierText;
+    }
+
+    for (let i = 0; i < puyoMultiplierText.length; i++) {
+      if (puyoMultiplierText[i] === "X") {
+        this.scoreDisplay[i + 1].visible = false;
+      } else {
+        this.scoreDisplay[i + 1].visible = true;
+        this.scoreDisplay[i + 1].texture = this.scoreCountSprites[`score_${puyoMultiplierText[i]}.png`];
+      }
+    }
+
+    for (let i = 0; i < bonusMultiplierText.length; i++) {
+      if (bonusMultiplierText[i] === "X") {
+        this.scoreDisplay[i + 5].visible = false;
+      } else {
+        this.scoreDisplay[i + 5].visible = true;
+        this.scoreDisplay[i + 5].texture = this.scoreCountSprites[`score_${bonusMultiplierText[i]}.png`];
+      }
+    }
+
+    this.scoreDisplay[4].texture = this.scoreCountSprites["score_x.png"];
+    this.scoreDisplay[0].visible = false;
   }
 }
