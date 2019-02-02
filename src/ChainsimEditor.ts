@@ -1155,4 +1155,16 @@ export default class ChainsimEditor {
       }
     }
   }
+
+  private setScoreDisplay(): void {
+    let scoreText: string = this.gameField.totalScore.toString();
+
+    const missingDigits: number = 8 - scoreText.length;
+
+    for (let i = 0; i < missingDigits; i++) {
+      scoreText = "0" + scoreText;
+    }
+
+    
+  }
 }
