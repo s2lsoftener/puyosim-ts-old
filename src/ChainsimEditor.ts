@@ -91,6 +91,7 @@ export default class ChainsimEditor {
   public fieldSprites: any; // Wha type is this...?
   public puyoSprites: any;
   public chainCountSprites: any;
+  public scoreCountSprites: any;
   public texturesToLoad: string[];
   public fieldDisplay: { [k: string]: any } = {};
   public fieldControls: { [k: string]: any } = {};
@@ -219,6 +220,7 @@ export default class ChainsimEditor {
       "/chainsim/img/cursor.png",
       "/chainsim/img/cursor_x.png",
       "/chainsim/img/chain_font.json",
+      "/chainsim/img/scoreFont.json",
       "/chainsim/img/edit_bubble.png",
       "/chainsim/img/touch_disabler.png",
       "/chainsim/img/picker_arrow_left.png",
@@ -263,6 +265,7 @@ export default class ChainsimEditor {
     this.fieldSprites = resources["/chainsim/img/field.json"].textures;
     this.puyoSprites = resources["/chainsim/img/puyo.json"].textures;
     this.chainCountSprites = resources["/chainsim/img/chain_font.json"].textures;
+    this.scoreCountSprites = resources["/chainsim/img/scoreFont.json"].textures;
     this.initFieldDisplay();
     this.initScoreDisplay();
     this.initGameOverX();
@@ -343,7 +346,8 @@ export default class ChainsimEditor {
     const startX: number = this.displayMode === "simple" ? 32 : 150;
 
     for (let i = 0; i < 8; i++) {
-      this.scoreDisplay[i] = new Sprite(this.fieldSprites["score_0.png"]);
+      this.scoreDisplay[i] = new Sprite(this.scoreCountSprites["score_0.png"]);
+      this.scoreDisplay[i].scale.set(0.8, 0.8);
       this.scoreDisplay[i].anchor.set(0.5);
       this.scoreDisplay[i].x = startX + this.scoreDisplay[i].width * 0.9 * i;
       this.scoreDisplay[i].y = 935;
