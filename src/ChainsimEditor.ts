@@ -91,6 +91,7 @@ export default class ChainsimEditor {
   public fieldSprites: any; // Wha type is this...?
   public puyoSprites: any;
   public chainCountSprites: any;
+  public chainCountDisplay: { [k: string]: any } = {};
   public scoreCountSprites: any;
   public texturesToLoad: string[];
   public fieldDisplay: { [k: string]: any } = {};
@@ -273,6 +274,7 @@ export default class ChainsimEditor {
     this.refreshPuyoSprites();
     this.initFieldControls();
     this.initGarbageDisplay();
+    this.initChainCounter();
     this.initToolDisplay();
   }
 
@@ -590,6 +592,41 @@ export default class ChainsimEditor {
     }
   }
 
+  private initChainCounter(): void {
+    const startX = 412;
+    const startY = 732;
+
+    this.chainCountDisplay.defaultPos = {
+      x: startX,
+      y: startY
+    };
+
+    this.chainCountDisplay.firstDigit = new Sprite(this.chainCountSprites["spacer.png"]);
+    this.chainCountDisplay.firstDigit.x = startX;
+    this.chainCountDisplay.firstDigit.y = startY;
+    this.chainCountDisplay.firstDigit.scale.set(0.85, 0.85);
+    this.chainCountDisplay.firstDigit.origY = this.chainCountDisplay.firstDigit.y;
+    this.chainCountDisplay.firstDigit.visible = false;
+
+    this.chainCountDisplay.secondDigit = new Sprite(this.chainCountSprites["spacer.png"]);
+    this.chainCountDisplay.secondDigit.x = startX + 40;
+    this.chainCountDisplay.secondDigit.y = startY;
+    this.chainCountDisplay.secondDigit.scale.set(0.85, 0.85);
+    this.chainCountDisplay.secondDigit.origY = this.chainCountDisplay.secondDigit.y;
+    this.chainCountDisplay.secondDigit.visible = false;
+
+    this.chainCountDisplay.chainText = new Sprite(this.chainCountSprites["chain_text.png"]);
+    this.chainCountDisplay.chainText.x = startX + 84;
+    this.chainCountDisplay.chainText.y = startY + 10;
+    this.chainCountDisplay.chainText.origY = this.chainCountDisplay.chainText.y;
+    this.chainCountDisplay.chainText.scale.set(0.85, 0.85);
+    this.chainCountDisplay.chainText.visible = false;
+
+    this.app.stage.addChild(this.chainCountDisplay.firstDigit);
+    this.app.stage.addChild(this.chainCountDisplay.secondDigit);
+    this.app.stage.addChild(this.chainCountDisplay.chainText);
+  }
+
   private initToolDisplay(): void {
     // "Speech bubble"
     this.editorDisplay.editBubble = new Sprite(
@@ -750,6 +787,7 @@ export default class ChainsimEditor {
     this.refreshPuyoSprites();
     this.refreshGarbageIcons();
     this.updateScoreDisplay();
+    this.updateChainCounterDisplay();
 
     this.state = this.idleState;
   }
@@ -911,6 +949,7 @@ export default class ChainsimEditor {
             }
           } else if (this.frame >= duration * 0.6) {
             this.showChainMultiplier();
+            this.updateChainCounterDisplay();
             // Change colored Puyos to burst sprite
             if (this.frame < duration) {
               for (const group of this.gameField.poppingGroups) {
@@ -955,6 +994,16 @@ export default class ChainsimEditor {
                 }
               }
             }
+
+            // Make the chain counter bounce
+            const t = this.frame - duration * 0.6 + 2;
+            const r = duration * 0.4; // time remaining
+            this.chainCountDisplay.firstDigit.y =
+              this.chainCountDisplay.defaultPos.y - 16 * ((-1 / r ** 2) * (t - r) ** 2 + 1);
+            this.chainCountDisplay.secondDigit.y =
+              this.chainCountDisplay.defaultPos.y - 16 * ((-1 / r ** 2) * (t - r) ** 2 + 1);
+            this.chainCountDisplay.chainText.y =
+              this.chainCountDisplay.defaultPos.y - 16 * ((-1 / r ** 2) * (t - r) ** 2 + 1);
           }
 
           // Animate Garbage Tray
@@ -1185,7 +1234,7 @@ export default class ChainsimEditor {
     const missingDigits = {
       puyo: 3 - puyoMultiplierText.length,
       bonus: 3 - bonusMultiplierText.length
-    }
+    };
 
     for (let i = 0; i < missingDigits.puyo; i++) {
       puyoMultiplierText = "X" + puyoMultiplierText;
@@ -1200,7 +1249,9 @@ export default class ChainsimEditor {
         this.scoreDisplay[i + 1].visible = false;
       } else {
         this.scoreDisplay[i + 1].visible = true;
-        this.scoreDisplay[i + 1].texture = this.scoreCountSprites[`score_${puyoMultiplierText[i]}.png`];
+        this.scoreDisplay[i + 1].texture = this.scoreCountSprites[
+          `score_${puyoMultiplierText[i]}.png`
+        ];
       }
     }
 
@@ -1209,11 +1260,42 @@ export default class ChainsimEditor {
         this.scoreDisplay[i + 5].visible = false;
       } else {
         this.scoreDisplay[i + 5].visible = true;
-        this.scoreDisplay[i + 5].texture = this.scoreCountSprites[`score_${bonusMultiplierText[i]}.png`];
+        this.scoreDisplay[i + 5].texture = this.scoreCountSprites[
+          `score_${bonusMultiplierText[i]}.png`
+        ];
       }
     }
 
     this.scoreDisplay[4].texture = this.scoreCountSprites["score_x.png"];
     this.scoreDisplay[0].visible = false;
+  }
+
+  private updateChainCounterDisplay(): void {
+    const chainLengthText: string = this.gameField.chainLength.toString();
+
+    if (chainLengthText === "0") {
+      this.chainCountDisplay.firstDigit.visible = false;
+      this.chainCountDisplay.secondDigit.visible = false;
+      this.chainCountDisplay.chainText.visible = false;
+    } else if (chainLengthText.length < 2) {
+      this.chainCountDisplay.firstDigit.visible = false;
+      this.chainCountDisplay.secondDigit.visible = true;
+      this.chainCountDisplay.chainText.visible = true;
+
+      this.chainCountDisplay.secondDigit.texture = this.chainCountSprites[
+        `chain_${chainLengthText[0]}.png`
+      ];
+    } else {
+      this.chainCountDisplay.firstDigit.visible = true;
+      this.chainCountDisplay.secondDigit.visible = true;
+      this.chainCountDisplay.chainText.visible = true;
+
+      this.chainCountDisplay.firstDigit.texture = this.chainCountSprites[
+        `chain_${chainLengthText[0]}.png`
+      ];
+      this.chainCountDisplay.secondDigit.texture = this.chainCountSprites[
+        `chain_${chainLengthText[1]}.png`
+      ];
+    }
   }
 }
