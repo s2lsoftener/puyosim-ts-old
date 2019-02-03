@@ -127,7 +127,7 @@ export default class ChainsimEditor {
 
   constructor(targetDiv: HTMLElement) {
     this.gameSettings = {
-      width: 608, // 608
+      width: 630, // 608
       height: 1000, // 1000
       cellWidth: 64,
       cellHeight: 60
@@ -183,17 +183,30 @@ export default class ChainsimEditor {
       transparent: true,
       resolution: 1
     });
-    this.app.view.style.width = `${this.gameSettings.width * 0.8}px`;
-    this.app.view.style.height = `${this.gameSettings.height * 0.8}px`;
+    // this.app.view.style.width = `${this.gameSettings.width * 0.8}px`;
+    // this.app.view.style.height = `${this.gameSettings.height * 0.8}px`;
+    this.app.view.style.backgroundColor = "#AAAAAA";
+
     this.app.stage.interactive = true;
     this.app.stage.on("pointerdown", () => {
       this.leftButtonDown = true;
     });
+    this.app.stage.on("touchstart", () => {
+      this.leftButtonDown = true;
+    })
     this.app.stage.on("pointerup", () => {
       this.leftButtonDown = false;
       this.rightButtonDown = false;
     });
+    this.app.stage.on("touchend", () => {
+      this.leftButtonDown = false;
+      this.rightButtonDown = false;
+    });
     this.app.stage.on("pointerupoutside", () => {
+      this.leftButtonDown = false;
+      this.rightButtonDown = false;
+    });
+    this.app.stage.on("touchendoutside", () => {
       this.leftButtonDown = false;
       this.rightButtonDown = false;
     });
@@ -235,7 +248,12 @@ export default class ChainsimEditor {
       "/chainsim/img/editor_x.png",
       "/chainsim/img/current_tool.png",
       "/chainsim/img/next_background_1p_mask.png",
-      "/chainsim/img/rotate_container.png"
+      "/chainsim/img/rotate_container.png",
+      "/chainsim/img/side_container.png",
+      "/chainsim/img/btn_sim.png",
+      "/chainsim/img/btn_sim_pressed.png",
+      "/chainsim/img/layer_main.png",
+      "/chainsim/img/layer_shadow.png"
     ];
 
     this.loader.add(this.texturesToLoad).load((loader: any, resources: any) => {
@@ -246,8 +264,8 @@ export default class ChainsimEditor {
     this.editorOpen = false;
     this.currentTool = {
       page: 0,
-      item: 6,
-      row: 1,
+      item: 0,
+      row: 0,
       puyo: "",
       targetLayer: "main",
       x: -2424,
@@ -257,7 +275,7 @@ export default class ChainsimEditor {
 
     // Game states
     this.state = this.idleState;
-    this.simulatorMode = "edit"; // "edit", "play"
+    this.simulatorMode = "sim"; // "edit", "sim"
     this.currentNextPuyos = [["R", "G"], ["B", "Y"], ["P", "R"]];
 
     // Load a test matrix
@@ -284,7 +302,7 @@ export default class ChainsimEditor {
     this.initGarbageDisplay();
     this.initChainCounter();
     this.initNextPuyos();
-    this.initToolDisplay();
+    this.initEditorDisplay();
   }
 
   private initFieldDisplay(): void {
@@ -400,6 +418,18 @@ export default class ChainsimEditor {
           }
         });
 
+        this.puyoDisplay[x][y].on("touchstart", () => {
+          if (this.currentTool.targetLayer === "main" && this.state === this.idleState) {
+            if (this.currentTool.puyo !== "") {
+              this.gameField.inputMatrix[x][y] = this.currentTool.puyo;
+              this.gameField.matrix[x][y].p = this.currentTool.puyo;
+              this.gameField.matrix[x][y].x = x;
+              this.gameField.matrix[x][y].y = y;
+            }
+            this.refreshPuyoSprites();
+          }
+        });
+
         // Right click. Erase current puyo.
         this.puyoDisplay[x][y].on("rightdown", () => {
           if (this.currentTool.targetLayer === "main" && this.state === this.idleState) {
@@ -437,13 +467,41 @@ export default class ChainsimEditor {
           }
         });
 
+        this.puyoDisplay[x][y].on("touchmove", () => {
+          if (
+            this.currentTool.targetLayer === "main" &&
+            this.state === this.idleState &&
+            this.leftButtonDown === true &&
+            this.rightButtonDown === false &&
+            this.currentTool.puyo !== ""
+          ) {
+            this.gameField.inputMatrix[x][y] = this.currentTool.puyo;
+            this.gameField.matrix[x][y].p = this.currentTool.puyo;
+            this.gameField.matrix[x][y].x = x;
+            this.gameField.matrix[x][y].y = y;
+            this.refreshPuyoSprites();
+          } else if (
+            this.currentTool.targetLayer === "main" &&
+            this.state === this.idleState &&
+            this.rightButtonDown === true
+          ) {
+            this.gameField.inputMatrix[x][y] = "0";
+            this.gameField.matrix[x][y].p = "0";
+            this.gameField.matrix[x][y].x = x;
+            this.gameField.matrix[x][y].y = y;
+            this.refreshPuyoSprites();
+          }
+        });
+
         // Turn off leftButtonDown when mouse buttons are released
         const releaseMouse = () => {
           this.leftButtonDown = false;
           this.rightButtonDown = false;
         };
         this.puyoDisplay[x][y].on("pointerupoutside", () => releaseMouse());
+        this.puyoDisplay[x][y].on("touchendoutside", () => releaseMouse());
         this.puyoDisplay[x][y].on("pointerup", () => releaseMouse());
+        this.puyoDisplay[x][y].on("touchend", () => releaseMouse());
         this.puyoDisplay[x][y].on("rightup", () => releaseMouse());
         this.puyoDisplay[x][y].on("rightupoutside", () => releaseMouse());
 
@@ -453,13 +511,52 @@ export default class ChainsimEditor {
   }
 
   private initFieldControls(): void {
-    const startY = 480;
-    let height;
+    // Side container
+    this.fieldControls.container = new Sprite(
+      this.resources["/chainsim/img/side_container.png"].texture
+    );
+    this.fieldControls.container.x = 438;
+    this.fieldControls.container.y = 548;
+    this.app.stage.addChild(this.fieldControls.container);
+
+    // Toolset toggle buttons
+    this.fieldControls.showSimTools = new Sprite(this.resources["/chainsim/img/btn_sim_pressed.png"].texture);
+    this.fieldControls.showSimTools.x = 456;
+    this.fieldControls.showSimTools.y = 472;
+    this.fieldControls.showSimTools.interactive = true;
+    this.fieldControls.showSimTools.buttonMode = true;
+    this.fieldControls.showSimTools.on("pointerup", () => {
+      if (this.simulatorMode !== "sim") {
+        this.simulatorMode = "sim";
+        this.toggleTools();
+      }
+      this.fieldControls.showSimTools.texture = this.resources["/chainsim/img/btn_sim_pressed.png"].texture;
+      this.fieldControls.showEditTools.texture = this.fieldSprites["btn_edit.png"];
+    })
+    this.app.stage.addChild(this.fieldControls.showSimTools);
+
+    this.fieldControls.showEditTools = new Sprite(this.fieldSprites["btn_edit.png"]);
+    this.fieldControls.showEditTools.x = 536 - 2;
+    this.fieldControls.showEditTools.y = 472 - 2;
+    this.fieldControls.showEditTools.interactive = true;
+    this.fieldControls.showEditTools.buttonMode = true;
+    this.fieldControls.showEditTools.on("pointerup", () => {
+      if (this.simulatorMode !== "edit") {
+        this.simulatorMode = "edit";
+        this.toggleTools();
+      }
+      this.fieldControls.showSimTools.texture = this.resources["/chainsim/img/btn_sim.png"].texture;
+      this.fieldControls.showEditTools.texture = this.fieldSprites["btn_edit_pressed.png"];
+    })
+    this.app.stage.addChild(this.fieldControls.showEditTools);
+
+    // Simulator Buttons
+    const startY = 568;
+    let height: number;
     let i = 0;
 
-    // Reset button
     this.fieldControls.reset = new Sprite(this.fieldSprites["btn_reset.png"]);
-    this.fieldControls.reset.x = 452;
+    this.fieldControls.reset.x = 456
     this.fieldControls.reset.y = startY;
     this.fieldControls.reset.interactive = true;
     this.fieldControls.reset.buttonMode = true;
@@ -478,7 +575,7 @@ export default class ChainsimEditor {
 
     // Pause button
     this.fieldControls.pause = new Sprite(this.fieldSprites["btn_pause.png"]);
-    this.fieldControls.pause.x = 528;
+    this.fieldControls.pause.x = 534;
     this.fieldControls.pause.y = startY + height * i;
     this.fieldControls.pause.interactive = true;
     this.fieldControls.pause.buttonMode = true;
@@ -496,7 +593,7 @@ export default class ChainsimEditor {
     i += 1;
 
     this.fieldControls.play = new Sprite(this.fieldSprites["btn_play.png"]);
-    this.fieldControls.play.x = 452;
+    this.fieldControls.play.x = 456;
     this.fieldControls.play.y = startY + height * i;
     this.fieldControls.play.interactive = true;
     this.fieldControls.play.buttonMode = true;
@@ -515,7 +612,7 @@ export default class ChainsimEditor {
     this.app.stage.addChild(this.fieldControls.play);
 
     this.fieldControls.auto = new Sprite(this.fieldSprites["btn_auto.png"]);
-    this.fieldControls.auto.x = 528;
+    this.fieldControls.auto.x = 534;
     this.fieldControls.auto.y = startY + height * i;
     this.fieldControls.auto.interactive = true;
     this.fieldControls.auto.buttonMode = true;
@@ -545,52 +642,73 @@ export default class ChainsimEditor {
       this.fieldControls.auto.texture = this.fieldSprites["btn_auto.png"];
     });
     this.app.stage.addChild(this.fieldControls.auto);
-    i += 1;
+  }
 
-    this.fieldDisplay.disableTouchBehind = new Sprite(
-      this.resources["/chainsim/img/touch_disabler.png"].texture
-    );
-    this.fieldDisplay.disableTouchBehind.x = 0;
-    this.fieldDisplay.disableTouchBehind.y = 0;
-    this.fieldDisplay.disableTouchBehind.width = this.gameSettings.width;
-    this.fieldDisplay.disableTouchBehind.height = this.gameSettings.height;
-    this.app.stage.addChild(this.fieldDisplay.disableTouchBehind);
-    this.fieldDisplay.disableTouchBehind.interactive = false;
-    this.fieldDisplay.disableTouchBehind.on("pointerup", () => {
-      this.toggleEditorWindow();
-    });
+  private toggleTools(): void {
+    if (this.simulatorMode === "sim") {
+      // If current simulator mode is edit, change to sim
+      const simTools = [
+        this.fieldControls.reset,
+        this.fieldControls.pause,
+        this.fieldControls.play,
+        this.fieldControls.auto
+      ]
 
-    this.fieldControls.edit = new Sprite(this.fieldSprites["btn_edit.png"]);
-    this.fieldControls.edit.x = 490;
-    this.fieldControls.edit.y = startY + i * height;
-    this.fieldControls.edit.interactive = true;
-    this.fieldControls.edit.buttonMode = true;
-    this.fieldControls.edit.on("pointerdown", () => {
-      this.fieldControls.edit.texture = this.fieldSprites["btn_edit_pressed.png"];
-    });
-    this.fieldControls.edit.on("pointerup", () => {
-      this.fieldControls.edit.texture = this.fieldSprites["btn_edit.png"];
-      if (this.editorOpen === false) {
-        this.resetFieldAndState();
+      for (const tool of simTools) {
+        tool.visible = true;
       }
-      this.toggleEditorWindow();
-    });
-    this.fieldControls.edit.on("pointerupoutside", () => {
-      this.fieldControls.edit.texture = this.fieldSprites["btn_edit.png"];
-    });
-    this.app.stage.addChild(this.fieldControls.edit);
+
+      for (const page of this.editorToolDisplay) {
+        for (const row of page) {
+          for (const item of row) {
+            item.visible = false;
+          }
+        }
+      }
+
+      this.editorDisplay.left.visible = false;
+      this.editorDisplay.right.visible = false;
+      this.editorDisplay.layerName.visible = false;
+
+      this.editorDisplay.toolCursor.visible = false;
+    } else if (this.simulatorMode === "edit") {
+      // If current simulator mode is sim, change to edit
+      const simTools = [
+        this.fieldControls.reset,
+        this.fieldControls.pause,
+        this.fieldControls.play,
+        this.fieldControls.auto
+      ]
+
+      for (const tool of simTools) {
+        tool.visible = false;
+      }
+
+      const p = this.currentTool.page;
+      for (const row of this.editorToolDisplay[p]) {
+        for (const item of row) {
+          item.visible = true;
+        }
+      }
+
+      this.editorDisplay.left.visible = true;
+      this.editorDisplay.right.visible = true;
+      this.editorDisplay.layerName.visible = true;
+
+      this.editorDisplay.toolCursor.visible = true;
+    }
   }
 
   private initGarbageDisplay(): void {
     // Place Garbage Tray
     this.fieldDisplay.garbageTray = new Sprite(this.fieldSprites["garbage_tray.png"]);
-    this.fieldDisplay.garbageTray.x = 316;
+    this.fieldDisplay.garbageTray.x = 337;
     this.fieldDisplay.garbageTray.y = 915;
     this.fieldDisplay.garbageTray.scale.set(0.7, 0.7);
     this.app.stage.addChild(this.fieldDisplay.garbageTray);
 
     // Place icon sprites
-    const startX: number = 324;
+    const startX: number = this.fieldDisplay.garbageTray.x + 8;
     for (let i = 0; i < 6; i++) {
       this.garbageDisplay[i] = new Sprite(this.puyoSprites["spacer_n.png"]);
       this.garbageDisplay[i].scale.set(0.7, 0.7);
@@ -601,9 +719,11 @@ export default class ChainsimEditor {
     }
   }
 
+  
+
   private initChainCounter(): void {
-    const startX = 412;
-    const startY = 732;
+    const startX = 432;
+    const startY = 836;
 
     this.chainCountDisplay.defaultPos = {
       x: startX,
@@ -687,65 +807,93 @@ export default class ChainsimEditor {
     }
   }
 
-  private initToolDisplay(): void {
-    // "Speech bubble"
-    this.editorDisplay.editBubble = new Sprite(
-      this.resources["/chainsim/img/edit_bubble.png"].texture
-    );
-    this.editorDisplay.editBubble.x = 520;
-    this.editorDisplay.editBubble.y = 704;
-    this.editorDisplay.editBubble.anchor.set(0.87, 0);
-    this.editorDisplay.editBubble.interactive = true;
-    this.editorDisplay.editBubble.visible = false;
-    this.app.stage.addChild(this.editorDisplay.editBubble);
-
+  private initEditorDisplay(): void {
     // Current tool cursor
     this.editorDisplay.toolCursor = new Sprite(
       this.resources["/chainsim/img/current_tool.png"].texture
     );
     this.editorDisplay.toolCursor.anchor.set(0.5, 0.5);
+    this.editorDisplay.toolCursor.scale.set(1.1, 1.1);
     this.editorDisplay.toolCursor.visible = false;
     this.editorDisplay.toolCursor.x = this.currentTool.x;
     this.editorDisplay.toolCursor.y = this.currentTool.y;
     this.app.stage.addChild(this.editorDisplay.toolCursor);
 
     // Set up page 0, row 0
-    const startX = 88;
-    const startY = 820;
+    const startX = 474;
+    const startY = 586;
 
     const toolSprites = [
       [
         [
-          this.puyoSprites["red_n.png"],
-          this.puyoSprites["green_n.png"],
-          this.puyoSprites["blue_n.png"],
-          this.puyoSprites["yellow_n.png"],
-          this.puyoSprites["purple_n.png"],
-          this.puyoSprites["garbage_n.png"],
           this.resources["/chainsim/img/editor_x.png"].texture
         ],
         [
           this.puyoSprites["red_n.png"],
           this.puyoSprites["green_n.png"],
-          this.puyoSprites["blue_n.png"],
+          this.puyoSprites["blue_n.png"]
+        ],
+        [
           this.puyoSprites["yellow_n.png"],
-          this.puyoSprites["purple_n.png"],
+          this.puyoSprites["purple_n.png"]
+        ],
+        [
           this.puyoSprites["garbage_n.png"],
+          this.puyoSprites["hard_n.png"],
+          this.puyoSprites["block_n.png"]
+        ]
+      ],
+      [
+        [
           this.resources["/chainsim/img/editor_x.png"].texture
+        ],
+        [
+          this.puyoSprites["red_n.png"],
+          this.puyoSprites["green_n.png"],
+          this.puyoSprites["blue_n.png"]
+        ],
+        [
+          this.puyoSprites["yellow_n.png"],
+          this.puyoSprites["purple_n.png"]
+        ],
+        [
+          this.puyoSprites["garbage_n.png"],
+          this.puyoSprites["hard_n.png"],
+          this.puyoSprites["block_n.png"]
         ]
       ]
     ];
 
-    const toolColors = [[["R", "G", "B", "Y", "P", "J", "0"], ["R", "G", "B", "Y", "P", "J", "0"]]];
-
-    const targetLayer = [
+    const toolColors = [
       [
-        ["main", "main", "main", "main", "main", "main", "main"],
-        ["shadow", "shadow", "shadow", "shadow", "shadow", "shadow", "shadow"]
+        ["0"],
+        ["R", "G", "B"],
+        ["Y", "P"],
+        ["J", "H", "L"]
+      ],
+      [
+        ["0"],
+        ["R", "G", "B"],
+        ["Y", "P"],
+        ["J", "H", "L"]
       ]
     ];
 
-    console.log(this.editorToolDisplay);
+    const targetLayer = [
+      [
+        ["main"],
+        ["main", "main", "main"],
+        ["main", "main"],
+        ["main", "main", "main"]
+      ],
+      [
+        ["shadow"],
+        ["shadow", "shadow", "shadow"],
+        ["shadow", "shadow"],
+        ["shadow", "shadow", "shadow"]
+      ]
+    ];
+
     for (let p = 0; p < toolSprites.length; p++) {
       this.editorToolDisplay[p] = [];
       for (let r = 0; r < toolSprites[p].length; r++) {
@@ -758,6 +906,7 @@ export default class ChainsimEditor {
           this.editorToolDisplay[p][r][i] = new Sprite(toolSprites[p][r][i]);
           this.editorToolDisplay[p][r][i].interactive = true;
           this.editorToolDisplay[p][r][i].buttonMode = true;
+          this.editorToolDisplay[p][r][i].scale.set(0.8, 0.8);
           this.editorToolDisplay[p][r][i].anchor.set(0.5, 0.5);
           this.editorToolDisplay[p][r][i].x =
             startX + (this.editorToolDisplay[p][r][i].width + horizontalPadding) * i;
@@ -769,7 +918,7 @@ export default class ChainsimEditor {
               this.currentTool.page === p &&
               this.currentTool.item === i &&
               this.currentTool.targetLayer === targetLayer[p][r][i] &&
-              this.currentTool.puyo !== ""
+              this.currentTool.puyo === toolColors[p][r][i]
             ) {
               this.currentTool.page = p;
               this.currentTool.item = i;
@@ -792,7 +941,7 @@ export default class ChainsimEditor {
           });
 
           if (targetLayer[p][r][i] === "shadow") {
-            this.editorToolDisplay[p][r][i].alpha = 0.4;
+            this.editorToolDisplay[p][r][i].alpha = 0.7;
           }
 
           this.editorToolDisplay[p][r][i].visible = false;
@@ -800,6 +949,70 @@ export default class ChainsimEditor {
         }
       }
     }
+
+
+    const arrowY = 790;
+    const editorPages = ["main", "shadow"]
+    this.editorDisplay.left = new Sprite(this.resources["/chainsim/img/picker_arrow_left.png"].texture);
+    this.editorDisplay.left.scale.set(0.8, 0.8);
+    this.editorDisplay.left.x = 436;
+    this.editorDisplay.left.y = arrowY;
+    this.editorDisplay.left.interactive = true;
+    this.editorDisplay.left.buttonMode = true;
+    this.editorDisplay.left.visible = false;
+    this.editorDisplay.left.on("pointerup", () => {
+      // Get index of current page based on editorPages
+      const index = editorPages.indexOf(this.currentTool.targetLayer);
+
+      if (index === 0) {
+        this.currentTool.page = editorPages.length - 1;
+        this.currentTool.targetLayer = editorPages[editorPages.length - 1]
+      } else {
+        this.currentTool.page = index - 1;
+        this.currentTool.targetLayer = editorPages[index - 1]
+      }
+
+      this.currentTool.item = 0;
+      this.currentTool.row = 0;
+      this.currentTool.puyo = "";
+      this.editorDisplay.toolCursor.visible = false;
+      this.updatePuyoPage();
+    })
+    this.app.stage.addChild(this.editorDisplay.left);
+
+    this.editorDisplay.right = new Sprite(this.resources["/chainsim/img/picker_arrow_right.png"].texture);
+    this.editorDisplay.right.scale.set(0.8, 0.8);
+    this.editorDisplay.right.x = 584;
+    this.editorDisplay.right.y = arrowY;
+    this.editorDisplay.right.interactive = true;
+    this.editorDisplay.right.buttonMode = true;
+    this.editorDisplay.right.visible = false;
+    this.editorDisplay.right.on("pointerup", () => {
+      // Get index of current page based on editorPages
+      const index = editorPages.indexOf(this.currentTool.targetLayer);
+
+      if (index === editorPages.length - 1) {
+        this.currentTool.page = 0;
+        this.currentTool.targetLayer = editorPages[0]
+      } else {
+        this.currentTool.page = index + 1;
+        this.currentTool.targetLayer = editorPages[index + 1]
+      }
+
+      this.currentTool.item = 0;
+      this.currentTool.row = 0;
+      this.currentTool.puyo = "";
+      this.editorDisplay.toolCursor.visible = false;
+      this.updatePuyoPage();
+    })
+    this.app.stage.addChild(this.editorDisplay.right);
+
+    this.editorDisplay.layerName = new Sprite(this.resources["/chainsim/img/layer_main.png"].texture);
+    this.editorDisplay.layerName.scale.set(0.8, 0.8);
+    this.editorDisplay.layerName.x = 466;
+    this.editorDisplay.layerName.y = arrowY;
+    this.editorDisplay.layerName.visible = false;
+    this.app.stage.addChild(this.editorDisplay.layerName);
   }
 
   private refreshPuyoSprites(): void {
@@ -1056,7 +1269,7 @@ export default class ChainsimEditor {
             // Make the chain counter bounce
             if (this.frame < duration) {
               const t = this.frame - duration * 0.6;
-              const r = duration * 0.4 / 2; // time remaining
+              const r = (duration * 0.4) / 2; // time remaining
               this.chainCountDisplay.firstDigit.y =
                 this.chainCountDisplay.defaultPos.y - 16 * ((-1 / r ** 2) * (t - r) ** 2 + 1);
               this.chainCountDisplay.secondDigit.y =
@@ -1064,7 +1277,6 @@ export default class ChainsimEditor {
               this.chainCountDisplay.chainText.y =
                 this.chainCountDisplay.defaultPos.y + 8 - 16 * ((-1 / r ** 2) * (t - r) ** 2 + 1);
             }
-            
           }
 
           // Animate Garbage Tray
@@ -1159,23 +1371,40 @@ export default class ChainsimEditor {
       this.nextCoord[1].y - this.nextCoord[0].y,
       this.nextCoord[1].y - this.nextCoord[0].y,
       this.nextCoord[2].y - this.nextCoord[1].y
-    ]
+    ];
 
     // First pair
-    this.nextPuyoPairs[0][0].y = this.nextCoord[0].y + this.nextPuyoPairs[0][0].height - ((moveY[0] + 20) / duration * this.frame);
-    this.nextPuyoPairs[0][1].y = this.nextCoord[0].y - (moveY[0] / duration * this.frame);
+    this.nextPuyoPairs[0][0].y =
+      this.nextCoord[0].y +
+      this.nextPuyoPairs[0][0].height -
+      ((moveY[0] + 20) / duration) * this.frame;
+    this.nextPuyoPairs[0][1].y = this.nextCoord[0].y - (moveY[0] / duration) * this.frame;
 
     // Second pair. 0.8 from sprite scaling in initNextPuyos()
-    this.nextPuyoPairs[1][0].y = this.nextCoord[1].y + this.nextPuyoPairs[0][0].height * 0.8 - ((moveY[0] - (this.nextPuyoPairs[0][0].height - this.nextPuyoPairs[0][0].height * 0.8)) / duration * this.frame);
-    this.nextPuyoPairs[1][1].y = this.nextCoord[1].y - (moveY[1] / duration * this.frame);
-    this.nextPuyoPairs[1][0].scale.set(0.8 + (0.2 / duration * this.frame), 0.8 + (0.2 / duration * this.frame));
-    this.nextPuyoPairs[1][1].scale.set(0.8 + (0.2 / duration * this.frame), 0.8 + (0.2 / duration * this.frame))
-    this.nextPuyoPairs[1][0].x = this.nextCoord[1].x - ((this.nextCoord[1].x - this.nextCoord[0].x) / duration * this.frame);
-    this.nextPuyoPairs[1][1].x = this.nextCoord[1].x - ((this.nextCoord[1].x - this.nextCoord[0].x) / duration * this.frame);
+    this.nextPuyoPairs[1][0].y =
+      this.nextCoord[1].y +
+      this.nextPuyoPairs[0][0].height * 0.8 -
+      ((moveY[0] - (this.nextPuyoPairs[0][0].height - this.nextPuyoPairs[0][0].height * 0.8)) /
+        duration) *
+        this.frame;
+    this.nextPuyoPairs[1][1].y = this.nextCoord[1].y - (moveY[1] / duration) * this.frame;
+    this.nextPuyoPairs[1][0].scale.set(
+      0.8 + (0.2 / duration) * this.frame,
+      0.8 + (0.2 / duration) * this.frame
+    );
+    this.nextPuyoPairs[1][1].scale.set(
+      0.8 + (0.2 / duration) * this.frame,
+      0.8 + (0.2 / duration) * this.frame
+    );
+    this.nextPuyoPairs[1][0].x =
+      this.nextCoord[1].x - ((this.nextCoord[1].x - this.nextCoord[0].x) / duration) * this.frame;
+    this.nextPuyoPairs[1][1].x =
+      this.nextCoord[1].x - ((this.nextCoord[1].x - this.nextCoord[0].x) / duration) * this.frame;
 
     // Third pair
-    this.nextPuyoPairs[2][0].y = this.nextCoord[2].y + this.nextPuyoPairs[2][0].height - (moveY[2] / duration * this.frame);
-    this.nextPuyoPairs[2][1].y = this.nextCoord[2].y - (moveY[2] / duration * this.frame);
+    this.nextPuyoPairs[2][0].y =
+      this.nextCoord[2].y + this.nextPuyoPairs[2][0].height - (moveY[2] / duration) * this.frame;
+    this.nextPuyoPairs[2][1].y = this.nextCoord[2].y - (moveY[2] / duration) * this.frame;
 
     if (this.frame === 8) {
       this.state = this.idleState;
@@ -1279,37 +1508,23 @@ export default class ChainsimEditor {
     }
   }
 
-  private toggleEditorWindow(): void {
-    if (this.editorOpen === true) {
-      this.editorDisplay.editBubble.visible = false;
-      this.editorOpen = false;
-      this.fieldDisplay.disableTouchBehind.interactive = false;
-      this.editorDisplay.toolCursor.visible = false;
-
-      for (const page of this.editorToolDisplay) {
-        for (const row of page) {
-          for (const item of row) {
+  private updatePuyoPage(): void {
+    for (let p = 0; p < this.editorToolDisplay.length; p++) {
+      for (const row of this.editorToolDisplay[p]) {
+        for (const item of row) {
+          if (p === this.currentTool.page) {
+            item.visible = true;
+          } else {
             item.visible = false;
           }
         }
       }
-    } else {
-      this.editorDisplay.editBubble.visible = true;
-      this.editorOpen = true;
-      this.fieldDisplay.disableTouchBehind.interactive = true;
-      this.editorDisplay.toolCursor.visible = true;
+    }
 
-      for (let p = 0; p < this.editorToolDisplay.length; p++) {
-        for (const row of this.editorToolDisplay[p]) {
-          for (const item of row) {
-            if (p === this.currentTool.page) {
-              item.visible = true;
-            } else {
-              item.visible = false;
-            }
-          }
-        }
-      }
+    if (this.currentTool.targetLayer === "main") {
+      this.editorDisplay.layerName.texture = this.resources["/chainsim/img/layer_main.png"].texture;
+    } else if (this.currentTool.targetLayer === "shadow") {
+      this.editorDisplay.layerName.texture = this.resources["/chainsim/img/layer_shadow.png"].texture;
     }
   }
 

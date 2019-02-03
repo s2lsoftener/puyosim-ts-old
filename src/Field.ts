@@ -335,7 +335,11 @@ export default class Field {
           this.matrix[x][y].connections = "n";
         } else if (this.dropDistances[x][y] > 0) {
           this.matrix[x][y].connections = "n";
-        } else if (this.matrix[x][y].p === PuyoType.None || this.matrix[x][y].isGarbage) {
+        } else if (
+          this.matrix[x][y].p === PuyoType.None ||
+          this.matrix[x][y].isGarbage ||
+          this.matrix[x][y].isBlock
+        ) {
           this.matrix[x][y].connections = "n";
         } else {
           let connection: string = "";

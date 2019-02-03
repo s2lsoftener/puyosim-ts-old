@@ -656,6 +656,14 @@
       "sourceSize": { "w": 64, "h": 60 },
       "pivot": { "x": 0.5, "y": 0.5 }
     },
+    "block_n.png": {
+      "frame": { "x": 1224, "y": 72, "w": 64, "h": 60 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 60 },
+      "sourceSize": { "w": 64, "h": 60 },
+      "pivot": { "x": 0.5, "y": 0.5 }
+    },
     "crown.png": {
       "frame": { "x": 720, "y": 792, "w": 64, "h": 60 },
       "rotated": false,

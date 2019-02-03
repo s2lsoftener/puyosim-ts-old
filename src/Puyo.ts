@@ -45,6 +45,11 @@ export class Puyo {
       return false;
     }
   }
+
+  get isBlock(): boolean {
+    return this.p === PuyoType.Block;
+  }
+
   get name(): string {
     switch (this.p) {
       case PuyoType.Red:
@@ -61,6 +66,8 @@ export class Puyo {
         return "garbage";
       case PuyoType.Hard:
         return "hard";
+      case PuyoType.Block:
+        return "block";
       default:
         return "spacer";
     }
