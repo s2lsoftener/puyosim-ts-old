@@ -191,22 +191,11 @@ export default class ChainsimEditor {
     this.app.stage.on("pointerdown", () => {
       this.leftButtonDown = true;
     });
-    this.app.stage.on("touchstart", () => {
-      this.leftButtonDown = true;
-    })
     this.app.stage.on("pointerup", () => {
       this.leftButtonDown = false;
       this.rightButtonDown = false;
     });
-    this.app.stage.on("touchend", () => {
-      this.leftButtonDown = false;
-      this.rightButtonDown = false;
-    });
     this.app.stage.on("pointerupoutside", () => {
-      this.leftButtonDown = false;
-      this.rightButtonDown = false;
-    });
-    this.app.stage.on("touchendoutside", () => {
       this.leftButtonDown = false;
       this.rightButtonDown = false;
     });
@@ -418,18 +407,6 @@ export default class ChainsimEditor {
           }
         });
 
-        this.puyoDisplay[x][y].on("touchstart", () => {
-          if (this.currentTool.targetLayer === "main" && this.state === this.idleState) {
-            if (this.currentTool.puyo !== "") {
-              this.gameField.inputMatrix[x][y] = this.currentTool.puyo;
-              this.gameField.matrix[x][y].p = this.currentTool.puyo;
-              this.gameField.matrix[x][y].x = x;
-              this.gameField.matrix[x][y].y = y;
-            }
-            this.refreshPuyoSprites();
-          }
-        });
-
         // Right click. Erase current puyo.
         this.puyoDisplay[x][y].on("rightdown", () => {
           if (this.currentTool.targetLayer === "main" && this.state === this.idleState) {
@@ -467,41 +444,13 @@ export default class ChainsimEditor {
           }
         });
 
-        this.puyoDisplay[x][y].on("touchmove", () => {
-          if (
-            this.currentTool.targetLayer === "main" &&
-            this.state === this.idleState &&
-            this.leftButtonDown === true &&
-            this.rightButtonDown === false &&
-            this.currentTool.puyo !== ""
-          ) {
-            this.gameField.inputMatrix[x][y] = this.currentTool.puyo;
-            this.gameField.matrix[x][y].p = this.currentTool.puyo;
-            this.gameField.matrix[x][y].x = x;
-            this.gameField.matrix[x][y].y = y;
-            this.refreshPuyoSprites();
-          } else if (
-            this.currentTool.targetLayer === "main" &&
-            this.state === this.idleState &&
-            this.rightButtonDown === true
-          ) {
-            this.gameField.inputMatrix[x][y] = "0";
-            this.gameField.matrix[x][y].p = "0";
-            this.gameField.matrix[x][y].x = x;
-            this.gameField.matrix[x][y].y = y;
-            this.refreshPuyoSprites();
-          }
-        });
-
         // Turn off leftButtonDown when mouse buttons are released
         const releaseMouse = () => {
           this.leftButtonDown = false;
           this.rightButtonDown = false;
         };
         this.puyoDisplay[x][y].on("pointerupoutside", () => releaseMouse());
-        this.puyoDisplay[x][y].on("touchendoutside", () => releaseMouse());
         this.puyoDisplay[x][y].on("pointerup", () => releaseMouse());
-        this.puyoDisplay[x][y].on("touchend", () => releaseMouse());
         this.puyoDisplay[x][y].on("rightup", () => releaseMouse());
         this.puyoDisplay[x][y].on("rightupoutside", () => releaseMouse());
 
