@@ -992,7 +992,6 @@ export default class ChainsimEditor {
 
   private animatePops(delta: number): void {
     if (this.gameField.simState === "checkingPops") {
-      this.updateChainCounterDisplay();
       const speed: number = delta * this.simulationSpeed;
 
       const duration: number = 40;
@@ -1009,7 +1008,6 @@ export default class ChainsimEditor {
               }
             }
           } else if (this.frame >= duration * 0.6) {
-            this.showChainMultiplier();
             // Change colored Puyos to burst sprite
             if (this.frame < duration) {
               for (const group of this.gameField.poppingGroups) {
@@ -1097,6 +1095,11 @@ export default class ChainsimEditor {
           }
         }
         this.frame += 1;
+      }
+
+      if (this.frame >= duration * 0.6) {
+        this.showChainMultiplier();
+        this.updateChainCounterDisplay();
       }
 
       if (this.frame >= duration * 1.2) {
