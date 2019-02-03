@@ -992,6 +992,7 @@ export default class ChainsimEditor {
 
   private animatePops(delta: number): void {
     if (this.gameField.simState === "checkingPops") {
+      this.frame += 1;
       const speed: number = delta * this.simulationSpeed;
 
       const duration: number = 40;
@@ -1008,8 +1009,6 @@ export default class ChainsimEditor {
               }
             }
           } else if (this.frame >= duration * 0.6) {
-            this.showChainMultiplier();
-            this.updateChainCounterDisplay();
             // Change colored Puyos to burst sprite
             if (this.frame < duration) {
               for (const group of this.gameField.poppingGroups) {
@@ -1054,10 +1053,13 @@ export default class ChainsimEditor {
                 }
               }
             }
+          }
 
-            // Make the chain counter bounce
-            const t = this.frame - duration * 0.6 + 2;
-            const r = duration * 0.4; // time remaining
+          if (this.frame >= duration * 0.6 && this.frame <= duration) {
+            this.showChainMultiplier();
+            this.updateChainCounterDisplay();
+            const t = this.frame - duration * 0.6;
+            const r = duration * 0.4 / 2; // time remaining
             this.chainCountDisplay.firstDigit.y =
               this.chainCountDisplay.defaultPos.y - 16 * ((-1 / r ** 2) * (t - r) ** 2 + 1);
             this.chainCountDisplay.secondDigit.y =
@@ -1065,6 +1067,7 @@ export default class ChainsimEditor {
             this.chainCountDisplay.chainText.y =
               this.chainCountDisplay.defaultPos.y + 8 - 16 * ((-1 / r ** 2) * (t - r) ** 2 + 1);
           }
+
 
           // Animate Garbage Tray
           const gAnimDuration = duration * 0.9 - duration * 0.6;
@@ -1093,7 +1096,6 @@ export default class ChainsimEditor {
             }
           }
         }
-        this.frame += 1;
       }
 
       if (this.frame >= duration * 1.2) {
