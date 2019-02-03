@@ -396,8 +396,8 @@ export default class ChainsimEditor {
               this.gameField.matrix[x][y].x = x;
               this.gameField.matrix[x][y].y = y;
             }
+            this.refreshPuyoSprites();
           }
-          this.refreshPuyoSprites();
         });
 
         // Right click. Erase current puyo.
@@ -407,8 +407,8 @@ export default class ChainsimEditor {
             this.gameField.matrix[x][y].p = "0";
             this.gameField.matrix[x][y].x = x;
             this.gameField.matrix[x][y].y = y;
+            this.refreshPuyoSprites();
           }
-          this.refreshPuyoSprites();
         });
 
         this.puyoDisplay[x][y].on("pointerover", () => {
