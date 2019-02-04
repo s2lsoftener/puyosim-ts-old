@@ -19,3 +19,14 @@ export function createUniformArray(value: any, cols: number, rows: number) {
   }
   return matrix
 }
+
+export function convertStringTo2DArray(value: string, cols: number, rows: number) {
+  const matrix: any[][] = [];
+  for (let x = 0; x < cols; x++) {
+    matrix[x] = []
+    for (let y = 0; y < cols; y++) {
+      matrix[x][y] = value[y * 6 + x];
+    }
+  }
+  return matrix;
+}

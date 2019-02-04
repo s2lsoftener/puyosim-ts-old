@@ -35,6 +35,11 @@ interface CurrentTool {
   y: number;
 }
 
+interface Surface {
+  horizontal: object[],
+  vertical: object[]
+}
+
 const defaultSimulatorSettings: SimulatorSettings = {
   rows: 13,
   cols: 6,
@@ -124,6 +129,7 @@ export default class ChainsimEditor {
   // Helper
   public coordArray: any[][];
   public nextCoord: any[];
+  public surfaces: Surface;
 
   constructor(targetDiv: HTMLElement) {
     this.gameSettings = {
@@ -242,7 +248,9 @@ export default class ChainsimEditor {
       "/chainsim/img/btn_sim.png",
       "/chainsim/img/btn_sim_pressed.png",
       "/chainsim/img/layer_main.png",
-      "/chainsim/img/layer_shadow.png"
+      "/chainsim/img/layer_shadow.png",
+      "/chainsim/img/btn_share.png",
+      "/chainsim/img/btn_share_pressed.png"
     ];
 
     this.loader.add(this.texturesToLoad).load((loader: any, resources: any) => {
@@ -266,6 +274,14 @@ export default class ChainsimEditor {
     this.state = this.idleState;
     this.simulatorMode = "sim"; // "edit", "sim"
     this.currentNextPuyos = [["R", "G"], ["B", "Y"], ["P", "R"]];
+    
+    // Surfaces
+    this.surfaces = {
+      horizontal: [],
+      vertical: []
+    };
+    this.calculateSurfaces();
+    console.log(this.surfaces);
 
     // Load a test matrix
     this.app.ticker.add(delta => this.gameLoop(delta));
@@ -541,6 +557,7 @@ export default class ChainsimEditor {
     this.app.stage.addChild(this.fieldControls.pause);
     i += 1;
 
+    // Step
     this.fieldControls.play = new Sprite(this.fieldSprites["btn_play.png"]);
     this.fieldControls.play.x = 456;
     this.fieldControls.play.y = startY + height * i;
@@ -560,6 +577,7 @@ export default class ChainsimEditor {
     });
     this.app.stage.addChild(this.fieldControls.play);
 
+    // Play
     this.fieldControls.auto = new Sprite(this.fieldSprites["btn_auto.png"]);
     this.fieldControls.auto.x = 534;
     this.fieldControls.auto.y = startY + height * i;
@@ -591,18 +609,46 @@ export default class ChainsimEditor {
       this.fieldControls.auto.texture = this.fieldSprites["btn_auto.png"];
     });
     this.app.stage.addChild(this.fieldControls.auto);
+    i += 1;
+
+    this.fieldControls.share = new Sprite(this.resources["/chainsim/img/btn_share.png"].texture);
+    this.fieldControls.share.x = 456;
+    this.fieldControls.share.y = startY + height * i;
+    this.fieldControls.share.interactive = true;
+    this.fieldControls.share.buttonMode = true;
+    this.fieldControls.share.on("pointerdown", () => {
+      this.fieldControls.share.texture = this.resources["/chainsim/img/btn_share_pressed.png"].texture;
+    });
+    this.fieldControls.share.on("pointerup", () => {
+      this.fieldControls.share.texture = this.resources["/chainsim/img/btn_share.png"].texture;
+      const array = transposeMatrix(this.gameField.matrixText);
+      let outputString = "";
+
+      for (const row of array) {
+        for (const cell of row) {
+          outputString += cell;
+        }
+      }
+
+      prompt("Chain string: ", outputString);
+    });
+    this.fieldControls.share.on("pointerupoutside", () => {
+      this.fieldControls.share.texture = this.resources["/chainsim/img/btn_share.png"].texture;
+    });
+    this.app.stage.addChild(this.fieldControls.share);
   }
 
   private toggleTools(): void {
+    const simTools = [
+      this.fieldControls.reset,
+      this.fieldControls.pause,
+      this.fieldControls.play,
+      this.fieldControls.auto,
+      this.fieldControls.share
+    ]
+
     if (this.simulatorMode === "sim") {
       // If current simulator mode is edit, change to sim
-      const simTools = [
-        this.fieldControls.reset,
-        this.fieldControls.pause,
-        this.fieldControls.play,
-        this.fieldControls.auto
-      ]
-
       for (const tool of simTools) {
         tool.visible = true;
       }
@@ -622,13 +668,6 @@ export default class ChainsimEditor {
       this.editorDisplay.toolCursor.visible = false;
     } else if (this.simulatorMode === "edit") {
       // If current simulator mode is sim, change to edit
-      const simTools = [
-        this.fieldControls.reset,
-        this.fieldControls.pause,
-        this.fieldControls.play,
-        this.fieldControls.auto
-      ]
-
       for (const tool of simTools) {
         tool.visible = false;
       }
@@ -1015,6 +1054,7 @@ export default class ChainsimEditor {
   }
 
   private gameLoop(delta: number): void {
+    this.calculateSurfaces();
     this.state(delta);
   }
 
@@ -1562,5 +1602,32 @@ export default class ChainsimEditor {
         `chain_${chainLengthText[1]}.png`
       ];
     }
+  }
+
+  private calculateSurfaces(): void {
+    // Calculate the surfaces all around each cell 
+    const surfaces: Surface = {
+      horizontal: [],
+      vertical: []
+    }
+    
+    for (const row of this.puyoDisplay) {
+      for (const puyo of row) {
+        const horizontalBound = {
+          left: puyo.x - puyo.width,
+          right: puyo.x + puyo.width
+        }
+
+        const verticalBound = {
+          top: puyo.y - puyo.height,
+          bottom: puyo.y + puyo.height
+        }
+
+        surfaces.horizontal.push(horizontalBound);
+        surfaces.vertical.push(verticalBound);
+      }
+    }
+
+    this.surfaces = surfaces;
   }
 }

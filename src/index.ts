@@ -68,3 +68,8 @@ game.setNewField(
 //     ["0", "0", "0", "0", "0", "0"]
 //   ])
 // );
+
+
+// setTimeout(() => {
+//   game.calculateSurface();
+// }, 5000)
