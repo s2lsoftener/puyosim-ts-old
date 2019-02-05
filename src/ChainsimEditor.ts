@@ -1,7 +1,7 @@
 import * as PIXI from "pixi.js";
 import Field from "./Field";
 import { createUniformArray, Keyboard, transposeMatrix } from "./helper";
-import { PuyoType } from "./Puyo";
+import { Puyo, PuyoType } from "./Puyo";
 
 const Sprite = PIXI.Sprite;
 
@@ -85,6 +85,9 @@ export default class ChainsimEditor {
   public loader: PIXI.Loader;
   public resources: any;
 
+  // Other field matrices
+  public shadowField: Puyo[][];
+
   // Game objects
   public app: PIXI.Application;
   public spritesheetJSON: any;
@@ -97,6 +100,7 @@ export default class ChainsimEditor {
   public fieldDisplay: { [k: string]: any } = {};
   public fieldControls: { [k: string]: any } = {};
   public puyoDisplay: PIXI.Sprite[][] = [];
+  public shadowDisplay: PIXI.Sprite[][] = [];
   public garbageDisplay: PIXI.Sprite[] = [];
   public scoreDisplay: PIXI.Sprite[] = [];
   public editorDisplay: { [k: string]: any } = {};
@@ -150,6 +154,19 @@ export default class ChainsimEditor {
       createUniformArray("0", this.simulatorSettings.cols, this.simulatorSettings.rows),
       this.simulatorSettings
     );
+    this.shadowField = createUniformArray(
+      "0",
+      this.simulatorSettings.cols,
+      this.simulatorSettings.rows
+    );
+    this.shadowField = [];
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      this.shadowField[x] = [];
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        this.shadowField[x][y] = new Puyo("0", x, y);
+      }
+    }
+
     this.frame = 0;
 
     // Placement properties
@@ -377,6 +394,7 @@ export default class ChainsimEditor {
     this.initFieldDisplay();
     this.initScoreDisplay();
     this.initGameOverX();
+    this.initShadowDisplay();
     this.initPuyoDisplay();
     this.refreshPuyoSprites();
     this.initFieldControls();
@@ -567,6 +585,91 @@ export default class ChainsimEditor {
     }
   }
 
+  private initShadowDisplay(): void {
+    this.shadowDisplay = [];
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      this.shadowDisplay[x] = [];
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        this.shadowDisplay[x][y] = new Sprite(
+          this.puyoSprites[`${this.shadowField[x][y].name}_n.png`]
+        );
+        this.shadowDisplay[x][y].anchor.set(0.5);
+        this.shadowDisplay[x][y].x = this.coordArray[x][y].x;
+        this.shadowDisplay[x][y].y = this.coordArray[x][y].y;
+        this.shadowDisplay[x][y].alpha = 0.5;
+        this.shadowDisplay[x][y].interactive = false;
+
+        // Left click. Replace Puyo with currentTool.puyo
+        this.shadowDisplay[x][y].on("pointerdown", () => {
+          if (
+            this.currentTool.targetLayer === "shadow" &&
+            this.state === this.idleState &&
+            this.simulatorMode === "edit"
+          ) {
+            if (this.currentTool.puyo !== "") {
+              this.shadowField[x][y].p = this.currentTool.puyo;
+              this.shadowField[x][y].x = x;
+              this.shadowField[x][y].y = y;
+            }
+            this.refreshShadowSprites();
+          }
+        });
+
+        // Right click. Erase ccurrent puyo.
+        this.shadowDisplay[x][y].on("rightdown", () => {
+          if (
+            this.currentTool.targetLayer === "shadow" &&
+            this.state === this.idleState &&
+            this.simulatorMode === "edit"
+          ) {
+            this.shadowField[x][y].p = "0";
+            this.shadowField[x][y].x = x;
+            this.shadowField[x][y].y = y;
+            this.refreshShadowSprites();
+          }
+        });
+
+        // Drag
+        this.shadowDisplay[x][y].on("pointerover", () => {
+          if (
+            this.currentTool.targetLayer === "shadow" &&
+            this.state === this.idleState &&
+            this.leftButtonDown === true &&
+            this.rightButtonDown === false &&
+            this.currentTool.puyo !== "" &&
+            this.simulatorMode === "edit"
+          ) {
+            this.shadowField[x][y].p = this.currentTool.puyo;
+            this.shadowField[x][y].x = x;
+            this.shadowField[x][y].y = y;
+            this.refreshShadowSprites();
+          } else if (
+            this.currentTool.targetLayer === "shadow" &&
+            this.state === this.idleState &&
+            this.rightButtonDown === true &&
+            this.simulatorMode === "edit"
+          ) {
+            this.shadowField[x][y].p = "0";
+            this.shadowField[x][y].x = x;
+            this.shadowField[x][y].y = y;
+            this.refreshShadowSprites();
+          }
+        });
+
+        const releaseMouse = () => {
+          this.leftButtonDown = false;
+          this.rightButtonDown = false;
+        };
+        this.shadowDisplay[x][y].on("pointerupoutside", () => releaseMouse());
+        this.shadowDisplay[x][y].on("pointerup", () => releaseMouse());
+        this.shadowDisplay[x][y].on("rightup", () => releaseMouse());
+        this.shadowDisplay[x][y].on("rightupoutside", () => releaseMouse());
+
+        this.app.stage.addChild(this.shadowDisplay[x][y]);
+      }
+    }
+  }
+
   private initFieldControls(): void {
     // Side container
     this.fieldControls.container = new Sprite(
@@ -676,7 +779,6 @@ export default class ChainsimEditor {
     });
     this.app.stage.addChild(this.fieldControls.reset);
     i += 1;
-
 
     this.fieldControls.back = new Sprite(this.fieldSprites["btn_back.png"]);
     this.fieldControls.back.x = 456;
@@ -818,6 +920,20 @@ export default class ChainsimEditor {
       this.editorDisplay.clearLayer.visible = true;
 
       this.editorDisplay.toolCursor.visible = true;
+    }
+  }
+
+  private toggleTargetLayer(): void {
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        if (this.currentTool.targetLayer === "main") {
+          this.puyoDisplay[x][y].interactive = true;
+          this.shadowDisplay[x][y].interactive = false;
+        } else if (this.currentTool.targetLayer === "shadow") {
+          this.puyoDisplay[x][y].interactive = false;
+          this.shadowDisplay[x][y].interactive = true;
+        }
+      }
     }
   }
 
@@ -1022,6 +1138,7 @@ export default class ChainsimEditor {
               this.currentTool.x = -2424;
               this.currentTool.y = -2424;
               this.editorDisplay.toolCursor.visible = false;
+              this.toggleTargetLayer();
             } else {
               this.currentTool.page = p;
               this.currentTool.item = i;
@@ -1032,6 +1149,7 @@ export default class ChainsimEditor {
               this.editorDisplay.toolCursor.x = this.editorToolDisplay[p][r][i].x;
               this.editorDisplay.toolCursor.y = this.editorToolDisplay[p][r][i].y;
               this.editorDisplay.toolCursor.visible = true;
+              this.toggleTargetLayer();
             }
           });
 
@@ -1064,15 +1182,25 @@ export default class ChainsimEditor {
       this.editorDisplay.clearLayer.texture = this.resources[
         "/chainsim/img/btn_clearLayer.png"
       ].texture;
-      for (let x = 0; x < this.simulatorSettings.cols; x++) {
-        for (let y = 0; y < this.simulatorSettings.rows; y++) {
-          this.gameField.inputMatrix[x][y] = "0";
-          this.gameField.matrix[x][y].p = "0";
-          this.gameField.matrix[x][y].x = x;
-          this.gameField.matrix[x][y].y = y;
+
+      if (this.currentTool.targetLayer === "main") {
+        for (let x = 0; x < this.simulatorSettings.cols; x++) {
+          for (let y = 0; y < this.simulatorSettings.rows; y++) {
+            this.gameField.inputMatrix[x][y] = "0";
+            this.gameField.matrix[x][y].p = "0";
+            this.gameField.matrix[x][y].x = x;
+            this.gameField.matrix[x][y].y = y;
+          }
         }
+        this.refreshPuyoSprites();
+      } else if (this.currentTool.targetLayer === "shadow") {
+        for (let x = 0; x < this.simulatorSettings.cols; x++) {
+          for (let y = 0; y < this.simulatorSettings.rows; y++) {
+            this.shadowField[x][y].p = "0";
+          }
+        }
+        this.refreshShadowSprites();
       }
-      this.refreshPuyoSprites();
     });
     this.editorDisplay.clearLayer.on("pointerupoutside", () => {
       this.editorDisplay.clearLayer.texture = this.resources[
@@ -1099,9 +1227,11 @@ export default class ChainsimEditor {
       if (index === 0) {
         this.currentTool.page = editorPages.length - 1;
         this.currentTool.targetLayer = editorPages[editorPages.length - 1];
+        this.toggleTargetLayer();
       } else {
         this.currentTool.page = index - 1;
         this.currentTool.targetLayer = editorPages[index - 1];
+        this.toggleTargetLayer();
       }
 
       this.currentTool.item = 0;
@@ -1128,9 +1258,11 @@ export default class ChainsimEditor {
       if (index === editorPages.length - 1) {
         this.currentTool.page = 0;
         this.currentTool.targetLayer = editorPages[0];
+        this.toggleTargetLayer();
       } else {
         this.currentTool.page = index + 1;
         this.currentTool.targetLayer = editorPages[index + 1];
+        this.toggleTargetLayer();
       }
 
       this.currentTool.item = 0;
@@ -1284,6 +1416,18 @@ export default class ChainsimEditor {
           this.puyoStates[x][y] = "idle";
           this.puyoDropSpeed[x][y] = 0;
           this.puyoBounceFrames[x][y] = 0;
+        }
+      }
+    }
+  }
+
+  private refreshShadowSprites(): void {
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        if (this.puyoSprites) {
+          this.shadowDisplay[x][y].texture = this.puyoSprites[
+            `${this.shadowField[x][y].name}_n.png`
+          ];
         }
       }
     }
