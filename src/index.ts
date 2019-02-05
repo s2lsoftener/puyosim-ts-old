@@ -1,6 +1,5 @@
 import ChainsimEditor from "./ChainsimEditor";
-import Field from "./Field";
-import { transposeMatrix } from "./helper";
+import { convertStringTo2DArray, transposeMatrix } from "./helper";
 
 const gameContainer: HTMLElement = document.getElementById("game-container")!;
 const game = new ChainsimEditor(gameContainer);
@@ -32,6 +31,14 @@ game.setNewField(
     ["R", "B", "G", "Y", "R", "B"]
   ])
 );
+
+// game.setNewField(
+//   convertStringTo2DArray(
+//     "000000L0000L00000L00000000LLL000000L00000LLLL00L00000L0Y00LL0RY0LLRGY0L0RGY0L0",
+//     6,
+//     13
+//   )
+// );
 
 // game.setNewField(
 //   transposeMatrix([
@@ -68,7 +75,6 @@ game.setNewField(
 //     ["0", "0", "0", "0", "0", "0"]
 //   ])
 // );
-
 
 // setTimeout(() => {
 //   game.calculateSurface();
