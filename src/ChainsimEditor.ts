@@ -87,6 +87,7 @@ export default class ChainsimEditor {
 
   // Other field matrices
   public shadowField: Puyo[][];
+  public arrowField: string[][];
 
   // Game objects
   public app: PIXI.Application;
@@ -101,6 +102,7 @@ export default class ChainsimEditor {
   public fieldControls: { [k: string]: any } = {};
   public puyoDisplay: PIXI.Sprite[][] = [];
   public shadowDisplay: PIXI.Sprite[][] = [];
+  public arrowDisplay: PIXI.Sprite[][] = [];
   public garbageDisplay: PIXI.Sprite[] = [];
   public scoreDisplay: PIXI.Sprite[] = [];
   public editorDisplay: { [k: string]: any } = {};
@@ -115,7 +117,6 @@ export default class ChainsimEditor {
   public leftButtonDown: boolean;
   public rightButtonDown: boolean;
   public state: any; // Function alias
-  public frame: number;
   public puyoStates: string[][];
   public puyoDropSpeed: number[][];
   public puyoBounceFrames: number[][];
@@ -125,6 +126,10 @@ export default class ChainsimEditor {
   public currentTool: CurrentTool;
   public currentNextPuyos: string[][];
   public activePuyoPairState: { [k: string]: any } = {};
+
+  // // Timing
+  public frame: number;
+  public arrowFrame: number;
 
   // Controller Input
   public keyboard: any;
@@ -154,11 +159,6 @@ export default class ChainsimEditor {
       createUniformArray("0", this.simulatorSettings.cols, this.simulatorSettings.rows),
       this.simulatorSettings
     );
-    this.shadowField = createUniformArray(
-      "0",
-      this.simulatorSettings.cols,
-      this.simulatorSettings.rows
-    );
     this.shadowField = [];
     for (let x = 0; x < this.simulatorSettings.cols; x++) {
       this.shadowField[x] = [];
@@ -166,8 +166,14 @@ export default class ChainsimEditor {
         this.shadowField[x][y] = new Puyo("0", x, y);
       }
     }
+    this.arrowField = createUniformArray(
+      "D",
+      this.simulatorSettings.cols,
+      this.simulatorSettings.rows
+    );
 
     this.frame = 0;
+    this.arrowFrame = 0;
 
     // Placement properties
     this.coordArray = [];
@@ -236,6 +242,7 @@ export default class ChainsimEditor {
       this.leftButtonDown = false;
       this.rightButtonDown = false;
     });
+
     targetDiv.appendChild(this.app.view);
 
     // Disable right click menu
@@ -308,7 +315,8 @@ export default class ChainsimEditor {
       "/chainsim/img/btn_config.png",
       "/chainsim/img/btn_config_pressed.png",
       "/chainsim/img/btn_clearLayer.png",
-      "/chainsim/img/btn_clearLayer_pressed.png"
+      "/chainsim/img/btn_clearLayer_pressed.png",
+      "/chainsim/img/layer_arrow.png"
     ];
 
     this.loader
@@ -394,8 +402,9 @@ export default class ChainsimEditor {
     this.initFieldDisplay();
     this.initScoreDisplay();
     this.initGameOverX();
-    this.initShadowDisplay();
     this.initPuyoDisplay();
+    this.initShadowDisplay();
+    this.initArrowDisplay();
     this.refreshPuyoSprites();
     this.initFieldControls();
     this.initGarbageDisplay();
@@ -508,7 +517,7 @@ export default class ChainsimEditor {
         this.puyoDisplay[x][y].y = this.coordArray[x][y].y;
 
         // Define interactions when pressed
-        this.puyoDisplay[x][y].interactive = true;
+        this.puyoDisplay[x][y].interactive = false;
 
         // Left click. Replace Puyo with currentTool.puyo
         this.puyoDisplay[x][y].on("pointerdown", () => {
@@ -666,6 +675,105 @@ export default class ChainsimEditor {
         this.shadowDisplay[x][y].on("rightupoutside", () => releaseMouse());
 
         this.app.stage.addChild(this.shadowDisplay[x][y]);
+      }
+    }
+  }
+
+  private initArrowDisplay(): void {
+    this.arrowDisplay = [];
+
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      this.arrowDisplay[x] = [];
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        // Read initial state of arrowField and load arrow/spacer accordingly
+        if (this.arrowField[x][y] === "0") {
+          this.arrowDisplay[x][y] = new Sprite(this.puyoSprites["spacer_n.png"]);
+        } else {
+          this.arrowDisplay[x][y] = new Sprite(this.resources["/chainsim/img/arrow.png"].texture);
+        }
+        this.arrowDisplay[x][y].anchor.set(0.5);
+        this.arrowDisplay[x][y].x = this.coordArray[x][y].x;
+        this.arrowDisplay[x][y].y = this.coordArray[x][y].y;
+        this.arrowDisplay[x][y].interactive = false;
+
+        // Rotate arrow based on arrowField
+        switch (this.arrowField[x][y]) {
+          case "U":
+            this.arrowDisplay[x][y].rotation = 0;
+            break;
+          case "R":
+            this.arrowDisplay[x][y].rotation = (1 / 2) * Math.PI;
+            break;
+          case "D":
+            this.arrowDisplay[x][y].rotation = Math.PI;
+            break;
+          case "L":
+            this.arrowDisplay[x][y].rotation = (3 / 2) * Math.PI;
+            break;
+          case "0":
+            this.arrowDisplay[x][y].rotation = 0;
+            break;
+          default:
+            this.arrowDisplay[x][y].rotation = 0;
+            break;
+        }
+
+        this.arrowDisplay[x][y].on("pointerdown", () => {
+          if (
+            this.currentTool.targetLayer === "arrow" &&
+            this.state === this.idleState &&
+            this.simulatorMode === "edit"
+          ) {
+            if (this.currentTool.puyo !== "") {
+              this.arrowField[x][y] = this.currentTool.puyo;
+            }
+            this.refreshArrowSprites();
+          }
+        });
+
+        this.arrowDisplay[x][y].on("rightdown", () => {
+          if (
+            this.currentTool.targetLayer === "arrow" &&
+            this.state === this.idleState &&
+            this.simulatorMode === "edit"
+          ) {
+            this.arrowField[x][y] = "0";
+            this.refreshArrowSprites();
+          }
+        });
+
+        this.arrowDisplay[x][y].on("pointerover", () => {
+          if (
+            this.currentTool.targetLayer === "arrow" &&
+            this.state === this.idleState &&
+            this.leftButtonDown === true &&
+            this.rightButtonDown === false &&
+            this.currentTool.puyo !== "" &&
+            this.simulatorMode === "edit"
+          ) {
+            this.arrowField[x][y] = this.currentTool.puyo;
+            this.refreshArrowSprites();
+          } else if (
+            this.currentTool.targetLayer === "arrow" &&
+            this.state === this.idleState &&
+            this.rightButtonDown === true &&
+            this.simulatorMode === "edit"
+          ) {
+            this.arrowField[x][y] = "0";
+            this.refreshArrowSprites();
+          }
+        });
+
+        const releaseMouse = () => {
+          this.leftButtonDown = false;
+          this.rightButtonDown = false;
+        };
+        this.arrowDisplay[x][y].on("pointerupoutside", () => releaseMouse());
+        this.arrowDisplay[x][y].on("pointerup", () => releaseMouse());
+        this.arrowDisplay[x][y].on("rightup", () => releaseMouse());
+        this.arrowDisplay[x][y].on("rightupoutside", () => releaseMouse());
+
+        this.app.stage.addChild(this.arrowDisplay[x][y]);
       }
     }
   }
@@ -929,9 +1037,15 @@ export default class ChainsimEditor {
         if (this.currentTool.targetLayer === "main") {
           this.puyoDisplay[x][y].interactive = true;
           this.shadowDisplay[x][y].interactive = false;
+          this.arrowDisplay[x][y].interactive = false;
         } else if (this.currentTool.targetLayer === "shadow") {
           this.puyoDisplay[x][y].interactive = false;
           this.shadowDisplay[x][y].interactive = true;
+          this.arrowDisplay[x][y].interactive = false;
+        } else if (this.currentTool.targetLayer === "arrow") {
+          this.puyoDisplay[x][y].interactive = false;
+          this.shadowDisplay[x][y].interactive = false;
+          this.arrowDisplay[x][y].interactive = true;
         }
       }
     }
@@ -1087,12 +1201,22 @@ export default class ChainsimEditor {
           this.puyoSprites["hard_n.png"],
           this.puyoSprites["block_n.png"]
         ]
+      ],
+      [
+        [this.resources["/chainsim/img/editor_x.png"].texture],
+        [
+          this.resources["/chainsim/img/arrow.png"].texture,
+          this.resources["/chainsim/img/arrow.png"].texture,
+          this.resources["/chainsim/img/arrow.png"].texture
+        ],
+        [this.resources["/chainsim/img/arrow.png"].texture]
       ]
     ];
 
     const toolColors = [
       [["0"], ["R", "G", "B"], ["Y", "P"], ["J", "H", "L"]],
-      [["0"], ["R", "G", "B"], ["Y", "P"], ["J", "H", "L"]]
+      [["0"], ["R", "G", "B"], ["Y", "P"], ["J", "H", "L"]],
+      [["0"], ["U", "R", "D"], ["L"]]
     ];
 
     const targetLayer = [
@@ -1102,6 +1226,11 @@ export default class ChainsimEditor {
         ["shadow", "shadow", "shadow"],
         ["shadow", "shadow"],
         ["shadow", "shadow", "shadow"]
+      ],
+      [
+        ["arrow"],
+        ["arrow", "arrow", "arrow"],
+        ["arrow"]
       ]
     ];
 
@@ -1157,6 +1286,18 @@ export default class ChainsimEditor {
             this.editorToolDisplay[p][r][i].alpha = 0.7;
           }
 
+          if (targetLayer[p][r][i] === "arrow") {
+            if (toolColors[p][r][i] === "U") {
+              this.editorToolDisplay[p][r][i].rotation = 0;
+            } else if (toolColors[p][r][i] === "R") {
+              this.editorToolDisplay[p][r][i].rotation = (1 / 2) * Math.PI;
+            } else if (toolColors[p][r][i] === "D") {
+              this.editorToolDisplay[p][r][i].rotation = Math.PI;
+            } else if (toolColors[p][r][i] === "L") {
+              this.editorToolDisplay[p][r][i].rotation = (3 / 2) * Math.PI;
+            }
+          }
+
           this.editorToolDisplay[p][r][i].visible = false;
           this.app.stage.addChild(this.editorToolDisplay[p][r][i]);
         }
@@ -1200,6 +1341,13 @@ export default class ChainsimEditor {
           }
         }
         this.refreshShadowSprites();
+      } else if (this.currentTool.targetLayer === "arrow") {
+        for (let x = 0; x < this.simulatorSettings.cols; x++) {
+          for (let y = 0; y < this.simulatorSettings.rows; y++) {
+            this.arrowField[x][y] = "0";
+          }
+        }
+        this.refreshArrowSprites();
       }
     });
     this.editorDisplay.clearLayer.on("pointerupoutside", () => {
@@ -1210,7 +1358,7 @@ export default class ChainsimEditor {
     this.app.stage.addChild(this.editorDisplay.clearLayer);
 
     const arrowY = 790;
-    const editorPages = ["main", "shadow"];
+    const editorPages = ["main", "shadow", "arrow"];
     this.editorDisplay.left = new Sprite(
       this.resources["/chainsim/img/picker_arrow_left.png"].texture
     );
@@ -1433,6 +1581,42 @@ export default class ChainsimEditor {
     }
   }
 
+  private refreshArrowSprites(): void {
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        if (this.arrowField[x][y] === "0") {
+          this.arrowDisplay[x][y].texture = this.puyoSprites["spacer_n.png"];
+        } else {
+          this.arrowDisplay[x][y].texture = this.resources["/chainsim/img/arrow.png"].texture;
+        }
+        this.arrowDisplay[x][y].anchor.set(0.5);
+        this.arrowDisplay[x][y].x = this.coordArray[x][y].x;
+        this.arrowDisplay[x][y].y = this.coordArray[x][y].y;
+
+        switch (this.arrowField[x][y]) {
+          case "U":
+            this.arrowDisplay[x][y].rotation = 0;
+            break;
+          case "R":
+            this.arrowDisplay[x][y].rotation = (1 / 2) * Math.PI;
+            break;
+          case "D":
+            this.arrowDisplay[x][y].rotation = Math.PI;
+            break;
+          case "L":
+            this.arrowDisplay[x][y].rotation = (3 / 2) * Math.PI;
+            break;
+          case "0":
+            this.arrowDisplay[x][y].rotation = 0;
+            break;
+          default:
+            this.arrowDisplay[x][y].rotation = 0;
+            break;
+        }
+      }
+    }
+  }
+
   private resetFieldAndState(): void {
     this.autoAdvance = false;
     this.simulationSpeed = 1;
@@ -1475,7 +1659,7 @@ export default class ChainsimEditor {
     //   puyo.x += speedX;
     //   puyo.y += speedY;
     // });
-
+    this.animateFieldArrows(delta);
     this.state(delta);
   }
 
@@ -1821,6 +2005,51 @@ export default class ChainsimEditor {
     }
   }
 
+  private animateFieldArrows(delta: number): void {
+    const speed = delta * this.simulationSpeed;
+    const duration = 30;
+    const spread = 4;
+
+    const animateArrow = () => {
+      for (let i = 0; i < Math.round(speed); i++) {
+        this.arrowFrame += 1;
+        for (let x = 0; x < this.simulatorSettings.cols; x++) {
+          for (let y = 0; y < this.simulatorSettings.rows; y++) {
+            if (this.arrowField[x][y] === "U") {
+              this.arrowDisplay[x][y].y =
+                this.coordArray[x][y].y - spread * Math.cos((this.arrowFrame / duration) * Math.PI);
+            } else if (this.arrowField[x][y] === "R") {
+              this.arrowDisplay[x][y].x =
+                this.coordArray[x][y].x + spread * Math.cos((this.arrowFrame / duration) * Math.PI);
+            } else if (this.arrowField[x][y] === "D") {
+              this.arrowDisplay[x][y].y =
+                this.coordArray[x][y].y + spread * Math.cos((this.arrowFrame / duration) * Math.PI);
+            } else if (this.arrowField[x][y] === "L") {
+              this.arrowDisplay[x][y].x =
+                this.coordArray[x][y].x - spread * Math.cos((this.arrowFrame / duration) * Math.PI);
+            }
+
+            this.arrowDisplay[x][y].visible = true;
+          }
+        }
+      }
+    }
+
+    if (this.state === this.idleState) {
+      animateArrow();
+    } else {
+      for (let x = 0; x < this.simulatorSettings.cols; x++) {
+        for (let y = 0; y < this.simulatorSettings.rows; y++) {
+          this.arrowDisplay[x][y].visible = false;
+        }
+      }
+    }
+
+    if (this.arrowFrame >= duration * 2) {
+      this.arrowFrame = 0;
+    }
+  }
+
   private calculateGarbageIcons(): string[] {
     const garbageIcons: string[] = [
       "spacer_n",
@@ -1936,6 +2165,10 @@ export default class ChainsimEditor {
     } else if (this.currentTool.targetLayer === "shadow") {
       this.editorDisplay.layerName.texture = this.resources[
         "/chainsim/img/layer_shadow.png"
+      ].texture;
+    } else if (this.currentTool.targetLayer === "arrow") {
+      this.editorDisplay.layerName.texture = this.resources[
+        "/chainsim/img/layer_arrow.png"
       ].texture;
     }
   }
