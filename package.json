@@ -14,9 +14,11 @@
     "lint": "tslint 'src/**/*.{ts}'"
   },
   "dependencies": {
+    "lz-string": "^1.4.4",
     "pixi.js": "^5.0.0-alpha.3"
   },
   "devDependencies": {
+    "@types/lz-string": "^1.3.32",
     "@types/node": "^10.12.18",
     "copy-webpack-plugin": "^4.6.0",
     "pixi-typescript": "https://github.com/pixijs/pixi-typescript.git#v5.0-rc",

@@ -1,6 +1,7 @@
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
 import * as PIXI from "pixi.js";
 import Field from "./Field";
-import { createUniformArray, Keyboard, transposeMatrix } from "./helper";
+import { convertStringTo2DArray, createUniformArray, flatten2DStringArray, getAllUrlParams, Keyboard } from "./helper";
 import { Puyo, PuyoType } from "./Puyo";
 
 const Sprite = PIXI.Sprite;
@@ -88,6 +89,7 @@ export default class ChainsimEditor {
   // Other field matrices
   public shadowField: Puyo[][];
   public arrowField: string[][];
+  public cursorField: string[][];
 
   // Game objects
   public app: PIXI.Application;
@@ -103,6 +105,7 @@ export default class ChainsimEditor {
   public puyoDisplay: PIXI.Sprite[][] = [];
   public shadowDisplay: PIXI.Sprite[][] = [];
   public arrowDisplay: PIXI.Sprite[][] = [];
+  public cursorDisplay: PIXI.Sprite[][] = [];
   public garbageDisplay: PIXI.Sprite[] = [];
   public scoreDisplay: PIXI.Sprite[] = [];
   public editorDisplay: { [k: string]: any } = {};
@@ -112,6 +115,7 @@ export default class ChainsimEditor {
   public gameControlDisplay: { [k: string]: any } = {};
 
   // State trackers
+  public simulatorLoaded: boolean;
   public simulatorMode: string;
   public gameMode: string;
   public leftButtonDown: boolean;
@@ -130,6 +134,7 @@ export default class ChainsimEditor {
   // // Timing
   public frame: number;
   public arrowFrame: number;
+  public cursorFrame: number;
 
   // Controller Input
   public keyboard: any;
@@ -143,6 +148,8 @@ export default class ChainsimEditor {
   public surfaces: any[];
 
   constructor(targetDiv: HTMLElement) {
+    this.simulatorLoaded = false;
+    
     this.gameSettings = {
       width: 630, // 608
       height: 1000, // 1000
@@ -167,13 +174,19 @@ export default class ChainsimEditor {
       }
     }
     this.arrowField = createUniformArray(
-      "D",
+      "0",
+      this.simulatorSettings.cols,
+      this.simulatorSettings.rows
+    );
+    this.cursorField = createUniformArray(
+      "0",
       this.simulatorSettings.cols,
       this.simulatorSettings.rows
     );
 
     this.frame = 0;
     this.arrowFrame = 0;
+    this.cursorFrame = 0;
 
     // Placement properties
     this.coordArray = [];
@@ -316,7 +329,8 @@ export default class ChainsimEditor {
       "/chainsim/img/btn_config_pressed.png",
       "/chainsim/img/btn_clearLayer.png",
       "/chainsim/img/btn_clearLayer_pressed.png",
-      "/chainsim/img/layer_arrow.png"
+      "/chainsim/img/layer_arrow.png",
+      "/chainsim/img/layer_cursor.png"
     ];
 
     this.loader
@@ -325,13 +339,54 @@ export default class ChainsimEditor {
         this.loadAssets(loader, resources);
       })
       .onComplete.add(() => {
+        this.simulatorLoaded = true;
+        this.loadFieldFromURL();
         this.app.ticker.add(delta => this.gameLoop(delta));
       });
   }
 
-  public setNewField(inputMatrix: string[][]): void {
-    this.gameField = new Field(inputMatrix, this.simulatorSettings);
-    this.refreshPuyoSprites();
+  public setNewField(fieldString: string): void {
+    const checkLoaded = new Promise((resolve, reject) => {
+      const keepCheckingForLoad = setInterval(() => {
+        if (this.simulatorLoaded === true) {
+          clearInterval(keepCheckingForLoad);
+          resolve("Importing fields since simulator has finished loading.");
+        }
+      }, 17)
+    });
+
+    checkLoaded.then((value) => {
+      console.log(value)
+      const fieldJSON = this.decompressChainURL(fieldString);
+      const cols = this.simulatorSettings.cols;
+      const rows = this.simulatorSettings.rows;
+  
+      const puyoField = convertStringTo2DArray(fieldJSON[0].puyo, cols, rows);
+      const shadowField = convertStringTo2DArray(fieldJSON[0].shadow, cols, rows);
+      const arrowField = convertStringTo2DArray(fieldJSON[0].arrow, cols, rows);
+      const cursorField = convertStringTo2DArray(fieldJSON[0].cursor, cols, rows);
+      
+      this.gameField = new Field(puyoField, this.simulatorSettings);
+      for (let x = 0; x < this.simulatorSettings.cols; x++) {
+        for (let y = 0; y < this.simulatorSettings.rows; y++) {
+          this.shadowField[x][y].p = shadowField[x][y];
+        }
+      }
+      this.arrowField = arrowField;
+      this.cursorField = cursorField;
+      this.refreshPuyoSprites();
+      this.refreshShadowSprites();
+      this.refreshArrowSprites();
+      this.refreshCursorSprites();
+    })
+  }
+
+  private loadFieldFromURL(): void {
+    const params: any = getAllUrlParams();
+    console.log(params);
+    if (params.hasOwnProperty("p")) {
+      this.setNewField(params.p);
+    }
   }
 
   // private setupKeyboardControls(): void {
@@ -404,6 +459,7 @@ export default class ChainsimEditor {
     this.initGameOverX();
     this.initPuyoDisplay();
     this.initShadowDisplay();
+    this.initCursorDisplay();
     this.initArrowDisplay();
     this.refreshPuyoSprites();
     this.initFieldControls();
@@ -679,6 +735,83 @@ export default class ChainsimEditor {
     }
   }
 
+  private initCursorDisplay(): void {
+    this.cursorDisplay = [];
+
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      this.cursorDisplay[x] = [];
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        this.cursorField[x][y] === "1"
+          ? (this.cursorDisplay[x][y] = new Sprite(
+              this.resources["/chainsim/img/cursor.png"].texture
+            ))
+          : (this.cursorDisplay[x][y] = new Sprite(this.puyoSprites["spacer_n.png"]));
+        
+        this.cursorDisplay[x][y].anchor.set(0.5);
+        this.cursorDisplay[x][y].x = this.coordArray[x][y].x;
+        this.cursorDisplay[x][y].y = this.coordArray[x][y].y;
+        this.cursorDisplay[x][y].interactive = false;
+
+        this.cursorDisplay[x][y].on("pointerdown", () => {
+          if (
+            this.currentTool.targetLayer === "cursor" &&
+            this.state === this.idleState &&
+            this.simulatorMode === "edit"
+          ) {
+            if (this.currentTool.puyo !== "") {
+              this.cursorField[x][y] = this.currentTool.puyo;
+            }
+            this.refreshCursorSprites();
+          }
+        });
+
+        this.cursorDisplay[x][y].on("rightdown", () => {
+          if (
+            this.currentTool.targetLayer === "cursor" &&
+            this.state === this.idleState &&
+            this.simulatorMode === "edit"
+          ) {
+            this.cursorField[x][y] = "0";
+            this.refreshCursorSprites();
+          }
+        });
+
+        this.cursorDisplay[x][y].on("pointerover", () => {
+          if (
+            this.currentTool.targetLayer === "cursor" &&
+            this.state === this.idleState &&
+            this.leftButtonDown === true &&
+            this.rightButtonDown === false &&
+            this.currentTool.puyo !== "" &&
+            this.simulatorMode === "edit"
+          ) {
+            this.cursorField[x][y] = this.currentTool.puyo;
+            this.refreshCursorSprites();
+          } else if (
+            this.currentTool.targetLayer === "cursor" &&
+            this.state === this.idleState &&
+            this.rightButtonDown === true &&
+            this.simulatorMode === "edit"
+          ) {
+            this.cursorField[x][y] = "0";
+            this.refreshCursorSprites();
+          }
+        });
+
+        const releaseMouse = () => {
+          this.leftButtonDown = false;
+          this.rightButtonDown = false;
+        };
+        this.cursorDisplay[x][y].on("pointerupoutside", () => releaseMouse());
+        this.cursorDisplay[x][y].on("pointerup", () => releaseMouse());
+        this.cursorDisplay[x][y].on("rightup", () => releaseMouse());
+        this.cursorDisplay[x][y].on("rightupoutside", () => releaseMouse());
+
+        this.app.stage.addChild(this.cursorDisplay[x][y]);
+      }
+    }
+  }
+
   private initArrowDisplay(): void {
     this.arrowDisplay = [];
 
@@ -845,16 +978,9 @@ export default class ChainsimEditor {
     });
     this.fieldControls.share.on("pointerup", () => {
       this.fieldControls.share.texture = this.resources["/chainsim/img/btn_share.png"].texture;
-      const array = transposeMatrix(this.gameField.matrixText);
-      let outputString = "";
+      const outputString = this.generateCompressedFields();
 
-      for (const row of array) {
-        for (const cell of row) {
-          outputString += cell;
-        }
-      }
-
-      prompt("Chain string: ", outputString);
+      prompt("Field string: ", `https://puyosim-ts.netlify.com/?p=${outputString}`);
     });
     this.fieldControls.share.on("pointerupoutside", () => {
       this.fieldControls.share.texture = this.resources["/chainsim/img/btn_share.png"].texture;
@@ -877,9 +1003,20 @@ export default class ChainsimEditor {
           this.gameField.matrix[x][y].p = "0";
           this.gameField.matrix[x][y].x = x;
           this.gameField.matrix[x][y].y = y;
+
+          this.shadowField[x][y].p = "0";
+          this.shadowField[x][y].x = x;
+          this.shadowField[x][y].y = y;
+
+          this.arrowField[x][y] = "0";
+
+          this.cursorField[x][y] = "0";
         }
       }
       this.refreshPuyoSprites();
+      this.refreshShadowSprites();
+      this.refreshArrowSprites();
+      this.refreshCursorSprites();
       this.resetFieldAndState();
     });
     this.fieldControls.reset.on("pointerupoutside", () => {
@@ -1038,14 +1175,22 @@ export default class ChainsimEditor {
           this.puyoDisplay[x][y].interactive = true;
           this.shadowDisplay[x][y].interactive = false;
           this.arrowDisplay[x][y].interactive = false;
+          this.cursorDisplay[x][y].interactive = false;
         } else if (this.currentTool.targetLayer === "shadow") {
           this.puyoDisplay[x][y].interactive = false;
           this.shadowDisplay[x][y].interactive = true;
           this.arrowDisplay[x][y].interactive = false;
+          this.cursorDisplay[x][y].interactive = false;
         } else if (this.currentTool.targetLayer === "arrow") {
           this.puyoDisplay[x][y].interactive = false;
           this.shadowDisplay[x][y].interactive = false;
           this.arrowDisplay[x][y].interactive = true;
+          this.cursorDisplay[x][y].interactive = false;
+        } else if (this.currentTool.targetLayer === "cursor") {
+          this.puyoDisplay[x][y].interactive = false;
+          this.shadowDisplay[x][y].interactive = false;
+          this.arrowDisplay[x][y].interactive = false;
+          this.cursorDisplay[x][y].interactive = true;
         }
       }
     }
@@ -1134,8 +1279,6 @@ export default class ChainsimEditor {
       }
     }
 
-    console.log(colorNames);
-
     for (let p = 0; p < colorNames.length; p++) {
       this.nextPuyoPairs[p][0] = new Sprite(this.puyoSprites[`${colorNames[p][0]}_n.png`]);
       this.nextPuyoPairs[p][1] = new Sprite(this.puyoSprites[`${colorNames[p][1]}_n.png`]);
@@ -1210,13 +1353,18 @@ export default class ChainsimEditor {
           this.resources["/chainsim/img/arrow.png"].texture
         ],
         [this.resources["/chainsim/img/arrow.png"].texture]
+      ],
+      [
+        [this.resources["/chainsim/img/editor_x.png"].texture],
+        [this.resources["/chainsim/img/cursor.png"].texture]
       ]
     ];
 
     const toolColors = [
-      [["0"], ["R", "G", "B"], ["Y", "P"], ["J", "H", "L"]],
-      [["0"], ["R", "G", "B"], ["Y", "P"], ["J", "H", "L"]],
-      [["0"], ["U", "R", "D"], ["L"]]
+      [["0"], ["R", "G", "B"], ["Y", "P"], ["J", "H", "L"]], // main
+      [["0"], ["R", "G", "B"], ["Y", "P"], ["J", "H", "L"]], // shadow
+      [["0"], ["U", "R", "D"], ["L"]], // arrow
+      [["0"], ["1"]] // cursor
     ];
 
     const targetLayer = [
@@ -1227,11 +1375,8 @@ export default class ChainsimEditor {
         ["shadow", "shadow"],
         ["shadow", "shadow", "shadow"]
       ],
-      [
-        ["arrow"],
-        ["arrow", "arrow", "arrow"],
-        ["arrow"]
-      ]
+      [["arrow"], ["arrow", "arrow", "arrow"], ["arrow"]],
+      [["cursor"], ["cursor"]]
     ];
 
     for (let p = 0; p < toolSprites.length; p++) {
@@ -1348,6 +1493,13 @@ export default class ChainsimEditor {
           }
         }
         this.refreshArrowSprites();
+      } else if (this.currentTool.targetLayer === "cursor") {
+        for (let x = 0; x < this.simulatorSettings.cols; x++) {
+          for (let y = 0; y < this.simulatorSettings.rows; y++) {
+            this.cursorField[x][y] = "0";
+          }
+        }
+        this.refreshCursorSprites();
       }
     });
     this.editorDisplay.clearLayer.on("pointerupoutside", () => {
@@ -1358,7 +1510,7 @@ export default class ChainsimEditor {
     this.app.stage.addChild(this.editorDisplay.clearLayer);
 
     const arrowY = 790;
-    const editorPages = ["main", "shadow", "arrow"];
+    const editorPages = ["main", "shadow", "arrow", "cursor"];
     this.editorDisplay.left = new Sprite(
       this.resources["/chainsim/img/picker_arrow_left.png"].texture
     );
@@ -1581,6 +1733,16 @@ export default class ChainsimEditor {
     }
   }
 
+  private refreshCursorSprites(): void {
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        this.cursorField[x][y] === "1"
+          ? (this.cursorDisplay[x][y].texture = this.resources["/chainsim/img/cursor.png"].texture)
+          : (this.cursorDisplay[x][y].texture = this.puyoSprites["spacer_n.png"]);
+      }
+    }
+  }
+
   private refreshArrowSprites(): void {
     for (let x = 0; x < this.simulatorSettings.cols; x++) {
       for (let y = 0; y < this.simulatorSettings.rows; y++) {
@@ -1660,6 +1822,7 @@ export default class ChainsimEditor {
     //   puyo.y += speedY;
     // });
     this.animateFieldArrows(delta);
+    this.animateFieldCursors(delta);
     this.state(delta);
   }
 
@@ -2005,6 +2168,36 @@ export default class ChainsimEditor {
     }
   }
 
+  private animateFieldCursors(delta: number): void {
+    const speed = delta * this.simulationSpeed;
+    const duration = 30;
+
+    const animateCursor = () => {
+      for (let i = 0; i < Math.round(speed); i++) {
+        this.cursorFrame += 1;
+        for (let x = 0; x < this.simulatorSettings.cols; x++) {
+          for (let y = 0; y < this.simulatorSettings.rows; y++) {
+            Math.cos(this.cursorFrame / duration * Math.PI) >= 0
+              ? this.cursorDisplay[x][y].scale.set(0.9, 0.9)
+              : this.cursorDisplay[x][y].scale.set(1, 1)
+
+            this.cursorDisplay[x][y].visible = true;
+          }
+        }
+      }
+    }
+
+    if (this.state === this.idleState) {
+      animateCursor();
+    } else {
+      for (let x = 0; x < this.simulatorSettings.cols; x++) {
+        for (let y = 0; y < this.simulatorSettings.rows; y++) {
+          this.arrowDisplay[x][y].visible = false;
+        }
+      }
+    }
+  }
+
   private animateFieldArrows(delta: number): void {
     const speed = delta * this.simulationSpeed;
     const duration = 30;
@@ -2033,7 +2226,7 @@ export default class ChainsimEditor {
           }
         }
       }
-    }
+    };
 
     if (this.state === this.idleState) {
       animateArrow();
@@ -2170,6 +2363,10 @@ export default class ChainsimEditor {
       this.editorDisplay.layerName.texture = this.resources[
         "/chainsim/img/layer_arrow.png"
       ].texture;
+    } else if (this.currentTool.targetLayer === "cursor") {
+      this.editorDisplay.layerName.texture = this.resources[
+        "/chainsim/img/layer_cursor.png"
+      ].texture;
     }
   }
 
@@ -2279,5 +2476,40 @@ export default class ChainsimEditor {
         }
       }
     }
+  }
+
+  private generateCompressedFields(): string {
+    const puyoString = flatten2DStringArray(this.gameField.matrixText);
+    console.log(puyoString);
+    let shadowString = "";
+    for (const col of this.shadowField) {
+      for (const cell of col) {
+        shadowString += cell.p;
+      }
+    }
+    const arrowString = flatten2DStringArray(this.arrowField);
+    const cursorString = flatten2DStringArray(this.cursorField);
+    
+    const fieldJSON = {
+      puyo: puyoString,
+      shadow: shadowString,
+      arrow: arrowString,
+      cursor: cursorString
+    };
+
+    console.log(fieldJSON);
+
+    // Encase fieldJSON in array
+    const compressedString = compressToEncodedURIComponent(JSON.stringify([fieldJSON]));
+    console.log(compressedString);
+    console.log(compressedString.length);
+
+    return compressedString;
+  }
+
+  private decompressChainURL(compressedString: string): any {
+    const fieldJSON = JSON.parse(decompressFromEncodedURIComponent(compressedString));
+    console.log(fieldJSON);
+    return fieldJSON
   }
 }

@@ -99,7 +99,6 @@ export default class Field {
     this.dropDistances = [];
     this.droppedMatrix = [];
     this.garbageClearCountMatrix = createUniformArray(0, this.settings.cols, this.settings.rows);
-    console.log(this.garbageClearCountMatrix);
     for (let x: number = 0; x < this.settings.cols; x++) {
       this.matrix[x] = [];
       this.dropDistances[x] = [];
