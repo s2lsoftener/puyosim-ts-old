@@ -1833,7 +1833,7 @@ export default class ChainsimEditor {
     // });
     this.animateFieldArrows(delta);
     this.animateFieldCursors(delta);
-    if (this.state === this.idleState) {
+    if (this.gameField.simState === "idle") {
       for (const col of this.shadowDisplay) {
         for (const cell of col) {
           cell.visible = true;
