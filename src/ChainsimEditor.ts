@@ -2226,7 +2226,7 @@ export default class ChainsimEditor {
     } else {
       for (let x = 0; x < this.simulatorSettings.cols; x++) {
         for (let y = 0; y < this.simulatorSettings.rows; y++) {
-          this.arrowDisplay[x][y].visible = false;
+          this.cursorDisplay[x][y].visible = false;
         }
       }
     }
