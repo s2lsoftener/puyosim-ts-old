@@ -1069,12 +1069,15 @@ export default class ChainsimEditor {
     this.fieldControls.play.buttonMode = true;
     this.fieldControls.play.on("pointerdown", () => {
       this.fieldControls.play.texture = this.fieldSprites["btn_play_pressed.png"];
-      this.autoAdvance = false;
-      this.simulationSpeed = 1;
-      this.gameField.advanceState();
     });
     this.fieldControls.play.on("pointerup", () => {
       this.fieldControls.play.texture = this.fieldSprites["btn_play.png"];
+      if (this.state === this.simulatorPaused) {
+        this.state = this.idleState;
+      }
+      this.autoAdvance = false;
+      this.simulationSpeed = 1;
+      this.gameField.advanceState();
     });
     this.fieldControls.play.on("pointerupoutside", () => {
       this.fieldControls.play.texture = this.fieldSprites["btn_play.png"];
@@ -1093,8 +1096,13 @@ export default class ChainsimEditor {
     this.fieldControls.auto.on("pointerup", () => {
       this.fieldControls.auto.texture = this.fieldSprites["btn_auto.png"];
 
-      console.log(this.gameField.simState);
-      if (this.gameField.simState === "idle" && this.autoAdvance === false) {
+      if (this.state === this.simulatorPaused) {
+        this.state = this.idleState;
+      }
+
+      if (this.gameField.simState === "finished") {
+        this.simulationSpeed = 1;
+      } else if (this.gameField.simState === "idle" && this.autoAdvance === false) {
         this.autoAdvance = true;
         this.simulationSpeed = 1;
         this.gameField.advanceState();
@@ -1823,8 +1831,23 @@ export default class ChainsimEditor {
     // });
     this.animateFieldArrows(delta);
     this.animateFieldCursors(delta);
+    if (this.state === this.idleState) {
+      for (const col of this.shadowDisplay) {
+        for (const cell of col) {
+          cell.visible = true;
+        }
+      }
+    } else {
+      for (const col of this.shadowDisplay) {
+        for (const cell of col) {
+          cell.visible = false;
+        }
+      }
+    }
+    console.log(this.state);
     this.state(delta);
   }
+
 
   private idleState(delta: number): void {
     if (this.gameField.simState === "checkingDrops") {
@@ -1838,6 +1861,10 @@ export default class ChainsimEditor {
       this.state = this.animatePops;
       console.log(JSON.parse(JSON.stringify(this.gameField.dropDistances)));
     }
+  }
+
+  private simulatorPaused(delta: number): void {
+    // Do nothing
   }
 
   private animateFieldDrops(delta: number): void {
@@ -1926,12 +1953,14 @@ export default class ChainsimEditor {
             this.updateScoreDisplay();
             this.state = this.animatePops;
           } else {
-            this.state = this.idleState;
+            this.state = this.simulatorPaused;
+            this.simulationSpeed = 1;
           }
         } else {
           this.gameField.simState = "dropped";
           this.refreshPuyoSprites();
-          this.state = this.idleState;
+          this.state = this.simulatorPaused;
+          this.simulationSpeed = 1;
         }
       }
     } else if (this.gameField.simState === "dropped") {
@@ -1950,12 +1979,14 @@ export default class ChainsimEditor {
           this.updateScoreDisplay();
           this.state = this.animatePops;
         } else {
-          this.state = this.idleState;
+          this.state = this.simulatorPaused;
+          this.simulationSpeed = 1;
         }
       } else {
         this.gameField.simState = "dropped";
         this.refreshPuyoSprites();
-        this.state = this.idleState;
+        this.state = this.simulatorPaused;
+        this.simulationSpeed = 1;
       }
     }
   }
@@ -2093,7 +2124,8 @@ export default class ChainsimEditor {
         } else {
           this.refreshPuyoSprites();
           this.updateScoreDisplay();
-          this.state = this.idleState;
+          this.state = this.simulatorPaused;
+          this.simulationSpeed = 1;
         }
       }
     } else if (this.gameField.simState === "popped") {
@@ -2113,7 +2145,8 @@ export default class ChainsimEditor {
         this.state = this.animateFieldDrops;
       } else {
         this.refreshPuyoSprites();
-        this.state = this.idleState;
+        this.state = this.simulatorPaused;
+        this.simulationSpeed = 1;
       }
     }
   }
@@ -2165,6 +2198,7 @@ export default class ChainsimEditor {
 
     if (this.frame === 8) {
       this.state = this.idleState;
+      this.simulationSpeed = 1;
     }
   }
 
@@ -2187,7 +2221,7 @@ export default class ChainsimEditor {
       }
     }
 
-    if (this.state === this.idleState) {
+    if (this.gameField.simState === "idle") {
       animateCursor();
     } else {
       for (let x = 0; x < this.simulatorSettings.cols; x++) {
@@ -2228,7 +2262,7 @@ export default class ChainsimEditor {
       }
     };
 
-    if (this.state === this.idleState) {
+    if (this.gameField.simState === "idle") {
       animateArrow();
     } else {
       for (let x = 0; x < this.simulatorSettings.cols; x++) {
