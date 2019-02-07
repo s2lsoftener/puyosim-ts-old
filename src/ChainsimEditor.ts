@@ -958,6 +958,8 @@ export default class ChainsimEditor {
       this.fieldControls.showEditTools.texture = this.resources[
         "/chainsim/img/btn_puyo_pressed.png"
       ].texture;
+
+      this.resetFieldAndState();
     });
     this.app.stage.addChild(this.fieldControls.showEditTools);
 
