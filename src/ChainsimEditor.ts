@@ -1846,7 +1846,6 @@ export default class ChainsimEditor {
         }
       }
     }
-    console.log(this.state);
     this.state(delta);
   }
 
