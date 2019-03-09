@@ -111,8 +111,9 @@ export default class ChainsimEditor {
   public editorDisplay: { [k: string]: any } = {};
   public editorToolDisplay: any[][][];
   public nextPuyoPairs: PIXI.Sprite[][] = [];
-  public activePuyoPair: PIXI.Sprite[] = [];
-  public gameControlDisplay: { [k: string]: any } = {};
+  public activePuyoPair: any[] = [];
+  public importantButtons: { [k: string]: any } = {};
+  public gameControls: { [k: string]: any } = {};
 
   // State trackers
   public simulatorLoaded: boolean;
@@ -141,6 +142,7 @@ export default class ChainsimEditor {
 
   // Data
   public gameField: Field;
+  public gameData: any[] = [];
 
   // Helper
   public coordArray: any[][];
@@ -336,56 +338,81 @@ export default class ChainsimEditor {
     this.loader
       .add(this.texturesToLoad)
       .load((loader: any, resources: any) => {
-        this.loadAssets(loader, resources);
+        this.resources = resources;
+        this.fieldSprites = resources["/chainsim/img/field.json"].textures;
+        this.puyoSprites = resources["/chainsim/img/puyo.json"].textures;
+        this.chainCountSprites = resources["/chainsim/img/chain_font.json"].textures;
+        this.scoreCountSprites = resources["/chainsim/img/scoreFont.json"].textures;
+        this.initFieldDisplay();
+        this.initScoreDisplay();
+        this.initGameOverX();
+        this.initPuyoDisplay();
+        this.initShadowDisplay();
+        this.initCursorDisplay();
+        this.initArrowDisplay();
+        this.refreshPuyoSprites();
+        this.initFieldControls();
+        this.initGarbageDisplay();
+        this.initChainCounter();
+        this.initNextPuyos();
+        this.initEditorDisplay();
+        this.initActivePair();
+        this.initGameControls();
+        this.initImportantButtons();
+        // this.setupKeyboardControls();
       })
       .onComplete.add(() => {
         this.simulatorLoaded = true;
-        this.loadFieldFromURL();
+        this.loadFromURL();
+        this.enableGameMode(); // Temporary
         this.app.ticker.add(delta => this.gameLoop(delta));
       });
   }
 
   public setNewField(fieldString: string): void {
-    const checkLoaded = new Promise((resolve, reject) => {
-      const keepCheckingForLoad = setInterval(() => {
-        if (this.simulatorLoaded === true) {
-          clearInterval(keepCheckingForLoad);
-          resolve("Importing fields since simulator has finished loading.");
-        }
-      }, 17)
-    });
-
-    checkLoaded.then((value) => {
-      console.log(value)
-      const fieldJSON = this.decompressChainURL(fieldString);
-      const cols = this.simulatorSettings.cols;
-      const rows = this.simulatorSettings.rows;
-  
-      const puyoField = convertStringTo2DArray(fieldJSON[0].puyo, cols, rows);
-      const shadowField = convertStringTo2DArray(fieldJSON[0].shadow, cols, rows);
-      const arrowField = convertStringTo2DArray(fieldJSON[0].arrow, cols, rows);
-      const cursorField = convertStringTo2DArray(fieldJSON[0].cursor, cols, rows);
-      
-      this.gameField = new Field(puyoField, this.simulatorSettings);
-      for (let x = 0; x < this.simulatorSettings.cols; x++) {
-        for (let y = 0; y < this.simulatorSettings.rows; y++) {
-          this.shadowField[x][y].p = shadowField[x][y];
-        }
-      }
-      this.arrowField = arrowField;
-      this.cursorField = cursorField;
-      this.refreshPuyoSprites();
-      this.refreshShadowSprites();
-      this.refreshArrowSprites();
-      this.refreshCursorSprites();
-    })
+    // do nothing
   }
 
-  private loadFieldFromURL(): void {
+  private loadFromURL(): void {
     const params: any = getAllUrlParams();
     console.log(params);
     if (params.hasOwnProperty("p")) {
-      this.setNewField(params.p);
+      const checkLoaded = new Promise((resolve, reject) => {
+        const keepCheckingForLoad = setInterval(() => {
+          if (this.simulatorLoaded === true) {
+            clearInterval(keepCheckingForLoad);
+            resolve("Importing fields since simulator has finished loading.");
+          }
+        }, 17)
+      });
+  
+      checkLoaded.then((value) => {
+        console.log(value)
+        const gameJSON = this.decompressChainURL(params.p);
+        const cols = this.simulatorSettings.cols;
+        const rows = this.simulatorSettings.rows;
+    
+        const puyoField = convertStringTo2DArray(gameJSON.slide[0].puyo, cols, rows);
+        const shadowField = convertStringTo2DArray(gameJSON.slide[0].shadow, cols, rows);
+        const arrowField = convertStringTo2DArray(gameJSON.slide[0].arrow, cols, rows);
+        const cursorField = convertStringTo2DArray(gameJSON.slide[0].cursor, cols, rows);
+        
+        this.gameField = new Field(puyoField, this.simulatorSettings);
+        for (let x = 0; x < this.simulatorSettings.cols; x++) {
+          for (let y = 0; y < this.simulatorSettings.rows; y++) {
+            this.shadowField[x][y].p = shadowField[x][y];
+          }
+        }
+        this.arrowField = arrowField;
+        this.cursorField = cursorField;
+  
+        this.gameData = gameJSON;
+  
+        this.refreshPuyoSprites();
+        this.refreshShadowSprites();
+        this.refreshArrowSprites();
+        this.refreshCursorSprites();
+      })
     }
   }
 
@@ -446,33 +473,6 @@ export default class ChainsimEditor {
       }
     }
     return false;
-  }
-
-  private loadAssets(loader: any, resources: any): void {
-    this.resources = resources;
-    this.fieldSprites = resources["/chainsim/img/field.json"].textures;
-    this.puyoSprites = resources["/chainsim/img/puyo.json"].textures;
-    this.chainCountSprites = resources["/chainsim/img/chain_font.json"].textures;
-    this.scoreCountSprites = resources["/chainsim/img/scoreFont.json"].textures;
-    this.initFieldDisplay();
-    this.initScoreDisplay();
-    this.initGameOverX();
-    this.initPuyoDisplay();
-    this.initShadowDisplay();
-    this.initCursorDisplay();
-    this.initArrowDisplay();
-    this.refreshPuyoSprites();
-    this.initFieldControls();
-    this.initGarbageDisplay();
-    this.initChainCounter();
-    this.initNextPuyos();
-    this.initEditorDisplay();
-    // this.initActivePair();
-    this.initGameModeButtons();
-    // this.setupKeyboardControls();
-
-    this.calculateSurfaces();
-    console.log(this.surfaces);
   }
 
   private initFieldDisplay(): void {
@@ -1593,120 +1593,165 @@ export default class ChainsimEditor {
     this.app.stage.addChild(this.editorDisplay.layerName);
   }
 
-  // private initActivePair(): void {
-  //   this.activePuyoPair = [
-  //     new Sprite(this.puyoSprites["red_n.png"]),
-  //     new Sprite(this.puyoSprites["blue_n.png"])
-  //   ];
+  private initActivePair(): void {
+    this.activePuyoPair = [
+      new Sprite(this.puyoSprites["red_n.png"]),
+      new Sprite(this.puyoSprites["blue_n.png"])
+    ];
 
-  //   this.activePuyoPair.forEach(puyo => puyo.anchor.set(0.5));
+    this.activePuyoPair.forEach(puyo => puyo.anchor.set(0.5));
 
-  //   const puyoHeight = this.activePuyoPair[0].height;
+    const puyoHeight = this.activePuyoPair[0].height;
 
-  //   this.activePuyoPair[0].y = this.coordArray[2][0].y - puyoHeight;
-  //   this.activePuyoPair[1].y = this.coordArray[2][0].y - puyoHeight * 2;
-  //   this.activePuyoPair[0].x = this.coordArray[2][0].x;
-  //   this.activePuyoPair[1].x = this.coordArray[2][0].x;
+    this.activePuyoPair[0].y = this.coordArray[2][0].y - puyoHeight;
+    this.activePuyoPair[1].y = this.coordArray[2][0].y - puyoHeight * 2;
+    this.activePuyoPair[0].x = this.coordArray[2][0].x;
+    this.activePuyoPair[1].x = this.coordArray[2][0].x;
 
-  //   // this.activePuyoPair.forEach(puyo => puyo.vx = 0);
-  //   // this.activePuyoPair.forEach(puyo => puyo.vy = 0);
-  //   this.activePuyoPair[0].vx = 0;
-  //   this.activePuyoPair[1].vx = 0;
-  //   this.activePuyoPair[0].vy = 0;
-  //   this.activePuyoPair[1].vy = 0;
+    this.activePuyoPair.forEach(puyo => puyo.vx = 0);
+    this.activePuyoPair.forEach(puyo => puyo.vy = 0);
+    this.activePuyoPair[0].vx = 0;
+    this.activePuyoPair[1].vx = 0;
+    this.activePuyoPair[0].vy = 0;
+    this.activePuyoPair[1].vy = 0;
 
-  //   this.app.stage.addChild(this.activePuyoPair[0]);
-  //   this.app.stage.addChild(this.activePuyoPair[1]);
+    this.app.stage.addChild(this.activePuyoPair[0]);
+    this.app.stage.addChild(this.activePuyoPair[1]);
+  }
+
+  // private initGamePlayAnimations(): any {
+  //   return {
+  //     mainPuyoFlash: () => {
+
+  //     }
+  //   }
   // }
 
-  private initGameModeButtons(): void {
+  private initGameControls(): void {
+    const gameControlsList = [];
+    
+    this.gameControls.rotateLeft = new Sprite(this.fieldSprites["btn_rotateleft.png"]);
+    this.gameControls.rotateLeft.x = 456 + 4;
+    this.gameControls.rotateLeft.y = 568;
+    gameControlsList.push(this.gameControls.rotateLeft);
+    
+    this.gameControls.rotateRight = new Sprite(this.fieldSprites["btn_rotateright.png"]);
+    this.gameControls.rotateRight.x = 528 + 4;
+    this.gameControls.rotateRight.y = 568;
+    gameControlsList.push(this.gameControls.rotateRight);
+    
+    this.gameControls.left = new Sprite(this.fieldSprites["btn_left.png"]);
+    this.gameControls.left.x = 456 + 4;
+    this.gameControls.left.y = 640;
+    gameControlsList.push(this.gameControls.left);
+
+    this.gameControls.right = new Sprite(this.fieldSprites["btn_right.png"]);
+    this.gameControls.right.x = 528 + 4;
+    this.gameControls.right.y = 640;
+    gameControlsList.push(this.gameControls.right);
+
+    this.gameControls.down = new Sprite(this.fieldSprites["btn_down.png"]);
+    this.gameControls.down.x = 492 + 4;
+    this.gameControls.down.y = 712;
+    gameControlsList.push(this.gameControls.down);
+
+
+    gameControlsList.forEach(sprite => {
+      sprite.interactive = true;
+      sprite.buttonMode = true;
+      this.app.stage.addChild(sprite);
+    });
+  }
+
+  private initImportantButtons(): void {
     const startX = 428;
     const startY = 12;
     let x = 0;
     let y = 0;
 
-    this.gameControlDisplay.learn = new Sprite(
+    this.importantButtons.learn = new Sprite(
       this.resources["/chainsim/img/btn_learn.png"].texture
     );
-    this.gameControlDisplay.learn.x = startX + 65 * x;
-    this.gameControlDisplay.learn.y = startY + 65 * y;
-    this.gameControlDisplay.learn.scale.set(0.9028, 0.9028);
-    this.gameControlDisplay.learn.buttonMode = true;
-    this.gameControlDisplay.learn.interactive = true;
-    this.gameControlDisplay.learn.on("pointerdown", () => {
-      this.gameControlDisplay.learn.texture = this.resources[
+    this.importantButtons.learn.x = startX + 65 * x;
+    this.importantButtons.learn.y = startY + 65 * y;
+    this.importantButtons.learn.scale.set(0.9028, 0.9028);
+    this.importantButtons.learn.buttonMode = true;
+    this.importantButtons.learn.interactive = true;
+    this.importantButtons.learn.on("pointerdown", () => {
+      this.importantButtons.learn.texture = this.resources[
         "/chainsim/img/btn_learn_pressed.png"
       ].texture;
     });
-    this.gameControlDisplay.learn.on("pointerup", () => {
-      this.gameControlDisplay.learn.texture = this.resources["/chainsim/img/btn_learn.png"].texture;
+    this.importantButtons.learn.on("pointerup", () => {
+      this.importantButtons.learn.texture = this.resources["/chainsim/img/btn_learn.png"].texture;
     });
-    this.gameControlDisplay.learn.on("pointerupoutside", () => {
-      this.gameControlDisplay.learn.texture = this.resources["/chainsim/img/btn_learn.png"].texture;
+    this.importantButtons.learn.on("pointerupoutside", () => {
+      this.importantButtons.learn.texture = this.resources["/chainsim/img/btn_learn.png"].texture;
     });
-    this.app.stage.addChild(this.gameControlDisplay.learn);
+    this.app.stage.addChild(this.importantButtons.learn);
     x += 1;
 
-    this.gameControlDisplay.edit = new Sprite(this.fieldSprites["btn_edit.png"]);
-    this.gameControlDisplay.edit.x = startX + 65 * x;
-    this.gameControlDisplay.edit.y = startY + 65 * y;
-    this.gameControlDisplay.edit.scale.set(0.9028, 0.9028);
-    this.gameControlDisplay.edit.buttonMode = true;
-    this.gameControlDisplay.edit.interactive = true;
-    this.gameControlDisplay.edit.on("pointerdown", () => {
-      this.gameControlDisplay.edit.texture = this.fieldSprites["btn_edit_pressed.png"];
+    this.importantButtons.edit = new Sprite(this.fieldSprites["btn_edit.png"]);
+    this.importantButtons.edit.x = startX + 65 * x;
+    this.importantButtons.edit.y = startY + 65 * y;
+    this.importantButtons.edit.scale.set(0.9028, 0.9028);
+    this.importantButtons.edit.buttonMode = true;
+    this.importantButtons.edit.interactive = true;
+    this.importantButtons.edit.on("pointerdown", () => {
+      this.importantButtons.edit.texture = this.fieldSprites["btn_edit_pressed.png"];
     });
-    this.gameControlDisplay.edit.on("pointerup", () => {
-      this.gameControlDisplay.edit.texture = this.fieldSprites["btn_edit.png"];
+    this.importantButtons.edit.on("pointerup", () => {
+      this.importantButtons.edit.texture = this.fieldSprites["btn_edit.png"];
     });
-    this.gameControlDisplay.edit.on("pointerupoutside", () => {
-      this.gameControlDisplay.edit.texture = this.fieldSprites["btn_edit.png"];
+    this.importantButtons.edit.on("pointerupoutside", () => {
+      this.importantButtons.edit.texture = this.fieldSprites["btn_edit.png"];
     });
-    this.app.stage.addChild(this.gameControlDisplay.edit);
+    this.app.stage.addChild(this.importantButtons.edit);
     x += 1;
 
-    this.gameControlDisplay.game = new Sprite(this.fieldSprites["btn_game.png"]);
-    this.gameControlDisplay.game.x = startX + 65 * x;
-    this.gameControlDisplay.game.y = startY + 65 * y;
-    this.gameControlDisplay.game.scale.set(0.9028, 0.9028);
-    this.gameControlDisplay.game.buttonMode = true;
-    this.gameControlDisplay.game.interactive = true;
-    this.gameControlDisplay.game.on("pointerdown", () => {
-      this.gameControlDisplay.game.texture = this.fieldSprites["btn_game_pressed.png"];
+    this.importantButtons.game = new Sprite(this.fieldSprites["btn_game.png"]);
+    this.importantButtons.game.x = startX + 65 * x;
+    this.importantButtons.game.y = startY + 65 * y;
+    this.importantButtons.game.scale.set(0.9028, 0.9028);
+    this.importantButtons.game.buttonMode = true;
+    this.importantButtons.game.interactive = true;
+    this.importantButtons.game.on("pointerdown", () => {
+      this.importantButtons.game.texture = this.fieldSprites["btn_game_pressed.png"];
     });
-    this.gameControlDisplay.game.on("pointerup", () => {
-      this.gameControlDisplay.game.texture = this.fieldSprites["btn_game.png"];
+    this.importantButtons.game.on("pointerup", () => {
+      this.importantButtons.game.texture = this.fieldSprites["btn_game.png"];
+      this.enableGameMode();
     });
-    this.gameControlDisplay.game.on("pointerupoutside", () => {
-      this.gameControlDisplay.game.texture = this.fieldSprites["btn_game.png"];
+    this.importantButtons.game.on("pointerupoutside", () => {
+      this.importantButtons.game.texture = this.fieldSprites["btn_game.png"];
     });
-    this.app.stage.addChild(this.gameControlDisplay.game);
+    this.app.stage.addChild(this.importantButtons.game);
     y += 1;
 
-    this.gameControlDisplay.config = new Sprite(
+    this.importantButtons.config = new Sprite(
       this.resources["/chainsim/img/btn_config.png"].texture
     );
-    this.gameControlDisplay.config.x = startX + 65 * x;
-    this.gameControlDisplay.config.y = startY + 65 * y;
-    this.gameControlDisplay.config.scale.set(0.9028, 0.9028);
-    this.gameControlDisplay.config.buttonMode = true;
-    this.gameControlDisplay.config.interactive = true;
-    this.gameControlDisplay.config.on("pointerdown", () => {
-      this.gameControlDisplay.config.texture = this.resources[
+    this.importantButtons.config.x = startX + 65 * x;
+    this.importantButtons.config.y = startY + 65 * y;
+    this.importantButtons.config.scale.set(0.9028, 0.9028);
+    this.importantButtons.config.buttonMode = true;
+    this.importantButtons.config.interactive = true;
+    this.importantButtons.config.on("pointerdown", () => {
+      this.importantButtons.config.texture = this.resources[
         "/chainsim/img/btn_config_pressed.png"
       ].texture;
     });
-    this.gameControlDisplay.config.on("pointerup", () => {
-      this.gameControlDisplay.config.texture = this.resources[
+    this.importantButtons.config.on("pointerup", () => {
+      this.importantButtons.config.texture = this.resources[
         "/chainsim/img/btn_config.png"
       ].texture;
     });
-    this.gameControlDisplay.config.on("pointerupoutside", () => {
-      this.gameControlDisplay.config.texture = this.resources[
+    this.importantButtons.config.on("pointerupoutside", () => {
+      this.importantButtons.config.texture = this.resources[
         "/chainsim/img/btn_config.png"
       ].texture;
     });
-    this.app.stage.addChild(this.gameControlDisplay.config);
+    this.app.stage.addChild(this.importantButtons.config);
   }
 
   private refreshPuyoSprites(): void {
@@ -1811,6 +1856,9 @@ export default class ChainsimEditor {
     this.gameField.simState = "idle";
     this.refreshPuyoSprites();
     this.refreshGarbageIcons();
+    this.refreshShadowSprites();
+    this.refreshArrowSprites();
+    this.refreshCursorSprites();
     this.updateScoreDisplay();
     this.updateChainCounterDisplay();
 
@@ -2513,7 +2561,7 @@ export default class ChainsimEditor {
     }
   }
 
-  private generateCompressedFields(): string {
+  private generateCurrentFieldJSON(): any {
     const puyoString = flatten2DStringArray(this.gameField.matrixText);
     console.log(puyoString);
     let shadowString = "";
@@ -2529,13 +2577,29 @@ export default class ChainsimEditor {
       puyo: puyoString,
       shadow: shadowString,
       arrow: arrowString,
-      cursor: cursorString
+      cursor: cursorString,
+      message: ""
     };
+
+    return fieldJSON
+  }
+
+  private generateCompressedFields(): string {
+    const fieldJSON = this.generateCurrentFieldJSON();
+
+    const gameJSON = {
+      next: "00RBGYPRBGYP",
+      seed: 24242424,
+      author: "S2LSOFTENER",
+      date: "2019-02-09",
+      tags: ["sandwich"],
+      slide: [fieldJSON]
+    }
 
     console.log(fieldJSON);
 
     // Encase fieldJSON in array
-    const compressedString = compressToEncodedURIComponent(JSON.stringify([fieldJSON]));
+    const compressedString = compressToEncodedURIComponent(JSON.stringify(gameJSON));
     console.log(compressedString);
     console.log(compressedString.length);
 
@@ -2546,5 +2610,34 @@ export default class ChainsimEditor {
     const fieldJSON = JSON.parse(decompressFromEncodedURIComponent(compressedString));
     console.log(fieldJSON);
     return fieldJSON
+  }
+
+  private enableGameMode(): void {
+    // Change overall game state
+    this.gameMode = "endless";
+    this.simulatorMode = "sim";
+
+    // Reset field state back to whatever the default loaded chain was.
+    this.resetFieldAndState();
+
+    // Hide editor stuff
+    this.fieldControls.showSimTools.visible = false;
+    this.editorDisplay.toolCursor.visible = false;
+    this.editorToolDisplay.forEach(p => p.forEach(r => r.forEach(i => i.visible = false)));
+    this.editorDisplay.clearLayer.visible = false;
+    this.editorDisplay.left.visible = false;
+    this.editorDisplay.right.visible = false;
+    this.editorDisplay.layerName.visible = false;
+
+    // Hide simulator controls
+    this.fieldControls.showEditTools.visible = false;
+    this.fieldControls.share.visible = false;
+    this.fieldControls.reset.visible = false;
+    this.fieldControls.back.visible = false;
+    this.fieldControls.pause.visible = false;
+    this.fieldControls.play.visible = false;
+    this.fieldControls.auto.visible = false;
+
+    // Show gameplay controls
   }
 }
