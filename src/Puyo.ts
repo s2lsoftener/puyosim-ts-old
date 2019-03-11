@@ -25,6 +25,15 @@ export class Puyo {
     this.newY = y;
     this.connections = "n";
   }
+
+  get isEmpty(): boolean {
+    if (this.p === PuyoType.None) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   get isColored(): boolean {
     if (
       this.p === PuyoType.Red ||

@@ -1,7 +1,14 @@
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
+import MersenneTwister from "mersenne-twister";
 import * as PIXI from "pixi.js";
 import Field from "./Field";
-import { convertStringTo2DArray, createUniformArray, flatten2DStringArray, getAllUrlParams, Keyboard } from "./helper";
+import {
+  convertStringTo2DArray,
+  createUniformArray,
+  flatten2DStringArray,
+  getAllUrlParams,
+  Keyboard
+} from "./helper";
 import { Puyo, PuyoType } from "./Puyo";
 
 const Sprite = PIXI.Sprite;
@@ -34,6 +41,11 @@ interface CurrentTool {
   targetLayer: string;
   x: number;
   y: number;
+}
+
+interface ActivePairDropDistances {
+  axisPuyo: number;
+  freePuyo: number;
 }
 
 const defaultSimulatorSettings: SimulatorSettings = {
@@ -112,6 +124,7 @@ export default class ChainsimEditor {
   public editorToolDisplay: any[][][];
   public nextPuyoPairs: PIXI.Sprite[][] = [];
   public activePuyoPair: any[] = [];
+  public activeShadowPuyoPair: any[] = [];
   public importantButtons: { [k: string]: any } = {};
   public gameControls: { [k: string]: any } = {};
 
@@ -131,6 +144,9 @@ export default class ChainsimEditor {
   public currentTool: CurrentTool;
   public currentNextPuyos: string[][];
   public activePuyoPairState: { [k: string]: any } = {};
+  public colorSeed: any;
+  public colorQueue: string;
+  public colorQueuePosition: number;
 
   // // Timing
   public frame: number;
@@ -149,9 +165,9 @@ export default class ChainsimEditor {
   public nextCoord: any[];
   public surfaces: any[];
 
-  constructor(targetDiv: HTMLElement) {
+  constructor(targetDiv: HTMLElement, colorSeed?: number) {
     this.simulatorLoaded = false;
-    
+
     this.gameSettings = {
       width: 630, // 608
       height: 1000, // 1000
@@ -284,12 +300,23 @@ export default class ChainsimEditor {
 
     // Initialize active pair state
     this.activePuyoPairState = {
-      shifting: false, // lateral movement. Takes 2 frames to complete.
-      rotating: false, // rotation coordinates are updated frame 1. Animation takes 7 more frames (so 8 total)
-      shiftTimer: 0,
-      rotateTimer: 0,
-      freePuyoPosition: 0 // 0 = top, 1 = right, 2 = bottom, 3 = left
+      timer: 0,
+      axisPuyo: {
+        color: "R",
+        position: { x: 2, y: -1 },
+        animationState: "idle"
+      },
+      freePuyo: {
+        color: "B",
+        position: { x: 2, y: -2 },
+        animationState: "idle"
+      }
     };
+
+    // Next Queue
+    this.colorSeed = colorSeed;
+    this.colorQueue = '';
+    this.colorQueuePosition = 0;
 
     // Surfaces
     this.surfaces = [];
@@ -343,6 +370,7 @@ export default class ChainsimEditor {
         this.puyoSprites = resources["/chainsim/img/puyo.json"].textures;
         this.chainCountSprites = resources["/chainsim/img/chain_font.json"].textures;
         this.scoreCountSprites = resources["/chainsim/img/scoreFont.json"].textures;
+        this.initColorQueue('RRGG', 24);
         this.initFieldDisplay();
         this.initScoreDisplay();
         this.initGameOverX();
@@ -364,8 +392,8 @@ export default class ChainsimEditor {
       .onComplete.add(() => {
         this.simulatorLoaded = true;
         this.loadFromURL();
-        this.enableGameMode(); // Temporary
         this.app.ticker.add(delta => this.gameLoop(delta));
+        // this.enableGameMode(); // Temporary
       });
   }
 
@@ -383,20 +411,20 @@ export default class ChainsimEditor {
             clearInterval(keepCheckingForLoad);
             resolve("Importing fields since simulator has finished loading.");
           }
-        }, 17)
+        }, 17);
       });
-  
-      checkLoaded.then((value) => {
-        console.log(value)
+
+      checkLoaded.then(value => {
+        console.log(value);
         const gameJSON = this.decompressChainURL(params.p);
         const cols = this.simulatorSettings.cols;
         const rows = this.simulatorSettings.rows;
-    
+
         const puyoField = convertStringTo2DArray(gameJSON.slide[0].puyo, cols, rows);
         const shadowField = convertStringTo2DArray(gameJSON.slide[0].shadow, cols, rows);
         const arrowField = convertStringTo2DArray(gameJSON.slide[0].arrow, cols, rows);
         const cursorField = convertStringTo2DArray(gameJSON.slide[0].cursor, cols, rows);
-        
+
         this.gameField = new Field(puyoField, this.simulatorSettings);
         for (let x = 0; x < this.simulatorSettings.cols; x++) {
           for (let y = 0; y < this.simulatorSettings.rows; y++) {
@@ -405,14 +433,14 @@ export default class ChainsimEditor {
         }
         this.arrowField = arrowField;
         this.cursorField = cursorField;
-  
+
         this.gameData = gameJSON;
-  
+
         this.refreshPuyoSprites();
         this.refreshShadowSprites();
         this.refreshArrowSprites();
         this.refreshCursorSprites();
-      })
+      });
     }
   }
 
@@ -746,7 +774,7 @@ export default class ChainsimEditor {
               this.resources["/chainsim/img/cursor.png"].texture
             ))
           : (this.cursorDisplay[x][y] = new Sprite(this.puyoSprites["spacer_n.png"]));
-        
+
         this.cursorDisplay[x][y].anchor.set(0.5);
         this.cursorDisplay[x][y].x = this.coordArray[x][y].x;
         this.cursorDisplay[x][y].y = this.coordArray[x][y].y;
@@ -1261,6 +1289,71 @@ export default class ChainsimEditor {
     this.app.stage.addChild(this.chainCountDisplay.chainText);
   }
 
+  private initColorQueue(initialPuyos?: string, importedSeed?: number): void {
+    let puyoGenerator;
+    let seed;
+    
+    if (importedSeed !== undefined) {
+      puyoGenerator = new MersenneTwister(importedSeed);
+    } else {
+      seed = Math.round(Math.random() * 65535 * 2424);
+      puyoGenerator = new MersenneTwister(seed);
+    }
+
+    const allColors = ["R", "G", "B", "Y", "P"];
+    const gameColors = [];
+    let colorString = '';
+    let maxColors = 4;
+
+    // Pick 4 colors
+    if (initialPuyos !== undefined) {
+      colorString = initialPuyos;
+      
+      const initialColors = [...new Set(initialPuyos)];
+      initialColors.length > 4
+        ? maxColors = initialColors.length
+        : maxColors = 4
+
+      if (initialColors.length >= maxColors) {
+        initialColors.slice(0, maxColors).forEach(color => gameColors.push(color));
+      } else {
+        initialColors.forEach(color => {
+          allColors.splice(allColors.indexOf(color), 1);
+          gameColors.push(color);
+        })
+
+        const numColorsNeeded = maxColors - initialColors.length;
+
+        for (let i = 0; i < numColorsNeeded; i++) {
+          const index = Math.floor(puyoGenerator.random_excl() * allColors.length);
+          gameColors.push(allColors[index]);
+          allColors.splice(index, 1);
+        }
+      }
+    } else {
+      for (let i = 0; i < maxColors; i++) {
+        const index = Math.floor(puyoGenerator.random_excl() * allColors.length);
+        gameColors.push(allColors[index]);
+        allColors.splice(index, 1);
+      }
+    }
+
+    // Generate 1024 Puyos
+    for (let i = 0; i < 1024; i++) {
+      (i < 4)
+        ? colorString += gameColors[Math.floor(puyoGenerator.random_excl() * 3)]
+        : colorString += gameColors[Math.floor(puyoGenerator.random_excl() * 4)]
+    }
+    
+    this.colorSeed = seed;
+    this.colorQueue = colorString;
+    this.currentNextPuyos = [
+      [colorString[0], colorString[1]],
+      [colorString[2], colorString[3]],
+      [colorString[4], colorString[5]]
+    ]
+  }
+
   private initNextPuyos(): void {
     this.nextPuyoPairs = [[], [], []];
 
@@ -1270,20 +1363,26 @@ export default class ChainsimEditor {
     for (let p = 0; p < colorNames.length; p++) {
       for (let i = 0; i < 2; i++) {
         switch (this.currentNextPuyos[p][i]) {
-          case "R":
+          case PuyoType.Red:
             colorNames[p][i] = "red";
             break;
-          case "G":
+          case PuyoType.Green:
             colorNames[p][i] = "green";
             break;
-          case "B":
+          case PuyoType.Blue:
             colorNames[p][i] = "blue";
             break;
-          case "Y":
+          case PuyoType.Yellow:
             colorNames[p][i] = "yellow";
             break;
-          case "P":
+          case PuyoType.Purple:
             colorNames[p][i] = "purple";
+            break;
+          case PuyoType.None:
+            colorNames[p][i] = "spacer";
+            break;
+          default:
+            colorNames[p][i] = "spacer";
             break;
         }
       }
@@ -1307,6 +1406,66 @@ export default class ChainsimEditor {
 
       this.app.stage.addChild(this.nextPuyoPairs[p][0]);
       this.app.stage.addChild(this.nextPuyoPairs[p][1]);
+    }
+  }
+
+  private refreshNextPuyos(): void {
+    const colorNames = [["spacer", "spacer"], ["spacer", "spacer"], ["spacer", "spacer"]];
+
+    for (let p = 0; p < colorNames.length; p++) {
+      this.nextPuyoPairs[p][0].texture = this.puyoSprites[`${colorNames[p][0]}_n.png`];
+      this.nextPuyoPairs[p][1].texture = this.puyoSprites[`${colorNames[p][1]}_n.png`];
+      if (p > 0) {
+        this.nextPuyoPairs[p][0].scale.set(0.8, 0.8);
+        this.nextPuyoPairs[p][1].scale.set(0.8, 0.8);
+      }
+      this.nextPuyoPairs[p][0].position.set(
+        this.nextCoord[p].x,
+        this.nextCoord[p].y + this.nextPuyoPairs[p][0].height
+      );
+      this.nextPuyoPairs[p][1].position.set(this.nextCoord[p].x, this.nextCoord[p].y);
+    }
+
+    for (let p = 0; p < colorNames.length; p++) {
+      for (let i = 0; i < 2; i++) {
+        switch (this.currentNextPuyos[p][i]) {
+          case PuyoType.Red:
+            colorNames[p][i] = "red";
+            break;
+          case PuyoType.Green:
+            colorNames[p][i] = "green";
+            break;
+          case PuyoType.Blue:
+            colorNames[p][i] = "blue";
+            break;
+          case PuyoType.Yellow:
+            colorNames[p][i] = "yellow";
+            break;
+          case PuyoType.Purple:
+            colorNames[p][i] = "purple";
+            break;
+          case PuyoType.None:
+            colorNames[p][i] = "spacer";
+            break;
+          default:
+            colorNames[p][i] = "spacer";
+            break;
+        }
+      }
+    }
+
+    for (let p = 0; p < colorNames.length; p++) {
+      this.nextPuyoPairs[p][0].texture = this.puyoSprites[`${colorNames[p][0]}_n.png`];
+      this.nextPuyoPairs[p][1].texture = this.puyoSprites[`${colorNames[p][1]}_n.png`];
+      if (p > 0) {
+        this.nextPuyoPairs[p][0].scale.set(0.8, 0.8);
+        this.nextPuyoPairs[p][1].scale.set(0.8, 0.8);
+      }
+      this.nextPuyoPairs[p][0].position.set(
+        this.nextCoord[p].x,
+        this.nextCoord[p].y + this.nextPuyoPairs[p][0].height
+      );
+      this.nextPuyoPairs[p][1].position.set(this.nextCoord[p].x, this.nextCoord[p].y);
     }
   }
 
@@ -1599,7 +1758,13 @@ export default class ChainsimEditor {
       new Sprite(this.puyoSprites["blue_n.png"])
     ];
 
+    this.activeShadowPuyoPair = [
+      new Sprite(this.puyoSprites["red_n.png"]),
+      new Sprite(this.puyoSprites["blue_n.png"])
+    ];
+
     this.activePuyoPair.forEach(puyo => puyo.anchor.set(0.5));
+    this.activePuyoPair.forEach(puyo => puyo.visible = false);
 
     const puyoHeight = this.activePuyoPair[0].height;
 
@@ -1608,15 +1773,179 @@ export default class ChainsimEditor {
     this.activePuyoPair[0].x = this.coordArray[2][0].x;
     this.activePuyoPair[1].x = this.coordArray[2][0].x;
 
-    this.activePuyoPair.forEach(puyo => puyo.vx = 0);
-    this.activePuyoPair.forEach(puyo => puyo.vy = 0);
+    this.activePuyoPair.forEach(puyo => (puyo.vx = 0));
+    this.activePuyoPair.forEach(puyo => (puyo.vy = 0));
     this.activePuyoPair[0].vx = 0;
     this.activePuyoPair[1].vx = 0;
     this.activePuyoPair[0].vy = 0;
     this.activePuyoPair[1].vy = 0;
 
+    this.activeShadowPuyoPair.forEach(puyo => puyo.position.set(300, 300));
+    this.activeShadowPuyoPair.forEach(puyo => puyo.anchor.set(0.5, 0.5));
+    this.activeShadowPuyoPair.forEach(puyo => (puyo.visible = false));
+    this.activeShadowPuyoPair.forEach(puyo => (puyo.alpha = 0.5));
+    this.activeShadowPuyoPair.forEach(puyo => {
+      this.app.stage.addChild(puyo);
+    });
+
     this.app.stage.addChild(this.activePuyoPair[0]);
     this.app.stage.addChild(this.activePuyoPair[1]);
+  }
+
+  private getActivePairDropDistances(): ActivePairDropDistances {
+    const axisPuyo = this.activePuyoPairState.axisPuyo;
+    const freePuyo = this.activePuyoPairState.freePuyo;
+    const dropDistances = {
+      axisPuyo: 0,
+      freePuyo: 0
+    }
+
+    if (axisPuyo.position.x !== freePuyo.position.x) {
+      const axisColEmptyCells = this.gameField.matrix[axisPuyo.position.x].filter(cell => cell.isEmpty).length;
+      const freeColEmptyCells = this.gameField.matrix[freePuyo.position.x].filter(cell => cell.isEmpty).length;
+      dropDistances.axisPuyo = axisColEmptyCells - axisPuyo.position.y - 1;
+      dropDistances.freePuyo = freeColEmptyCells - freePuyo.position.y - 1;
+    } else if (axisPuyo.position.y > freePuyo.position.y) {
+      const emptyCells = this.gameField.matrix[axisPuyo.position.x].filter(cell => cell.isEmpty).length;
+      dropDistances.axisPuyo = emptyCells - axisPuyo.position.y - 1;
+      dropDistances.freePuyo = dropDistances.axisPuyo;
+    } else if (axisPuyo.position.y < freePuyo.position.y) {
+      const emptyCells = this.gameField.matrix[freePuyo.position.x].filter(cell => cell.isEmpty).length;
+      dropDistances.freePuyo = emptyCells - freePuyo.position.y - 1;
+      dropDistances.axisPuyo = dropDistances.freePuyo;
+    }
+
+    console.log(dropDistances);
+    return dropDistances;
+  }
+
+  private refreshActivePair(): void {
+    const colorPair = [this.colorQueue[this.colorQueuePosition], this.colorQueue[this.colorQueuePosition + 1]];
+    const colorName = colorPair.map(colorCode => {
+      switch (colorCode) {
+        case PuyoType.Red:
+          return "red";
+        case PuyoType.Green:
+          return "green";
+        case PuyoType.Blue:
+          return "blue";
+        case PuyoType.Yellow:
+          return "yellow";
+        case PuyoType.Purple:
+          return "purple";
+        case PuyoType.None:
+          return "spacer";
+        default:
+          return "spacer";
+      }
+    })
+  
+    this.activePuyoPair.forEach((puyo, i) => {
+      puyo.texture = this.puyoSprites[`${colorName[i]}_n.png`];
+      puyo.visible = true;
+    });
+  
+    this.activeShadowPuyoPair.forEach((puyo, i) => {
+      puyo.texture = this.puyoSprites[`${colorName[i]}_n.png`];
+      puyo.visible = true;
+    });
+  }
+
+  private moveActivePair(): void {
+    const newCol = {
+      axisPuyo: this.activePuyoPairState.axisPuyo.position.x,
+      freePuyo: this.activePuyoPairState.freePuyo.position.x
+    };
+    const newRow = {
+      axisPuyo: this.activePuyoPairState.axisPuyo.position.y,
+      freePuyo: this.activePuyoPairState.freePuyo.position.y
+    };
+    const puyoHeight = this.activePuyoPair[0].height;
+
+    this.activePuyoPair.forEach(puyo => (puyo.visible = true));
+    this.activePuyoPair[0].x = this.coordArray[newCol.axisPuyo][0].x;
+    this.activePuyoPair[1].x = this.coordArray[newCol.freePuyo][0].x;
+    this.activePuyoPair[0].y = this.coordArray[0][0].y + newRow.axisPuyo * puyoHeight;
+    this.activePuyoPair[1].y = this.coordArray[0][0].y + newRow.freePuyo * puyoHeight;
+
+    const dropDistances = this.getActivePairDropDistances();
+    
+    if (dropDistances.axisPuyo - 1 >= 0) {
+      if (newCol.axisPuyo === newCol.freePuyo && dropDistances.axisPuyo >=2 && dropDistances.freePuyo >= 2) {
+        this.activeShadowPuyoPair.forEach(puyo => puyo.visible = true);
+      } else if (newCol.axisPuyo !== newCol.freePuyo && dropDistances.axisPuyo >= 1 && dropDistances.freePuyo >= 1) {
+        this.activeShadowPuyoPair.forEach(puyo => puyo.visible = true);
+      }
+      this.activeShadowPuyoPair[0].x = this.coordArray[newCol.axisPuyo][0].x;
+      this.activeShadowPuyoPair[1].x = this.coordArray[newCol.freePuyo][0].x;
+      this.activeShadowPuyoPair[0].y = this.coordArray[newCol.axisPuyo][dropDistances.axisPuyo - 1].y;
+      this.activeShadowPuyoPair[1].y = this.coordArray[newCol.freePuyo][dropDistances.freePuyo - 1 - (newRow.axisPuyo - newRow.freePuyo)].y;
+    } else {
+      this.activeShadowPuyoPair.forEach(puyo => puyo.visible = false);
+    }
+  }
+
+  private dropActivePair(): void {
+    if (this.state === this.idleState) {
+      const targetCol = {
+        axisPuyo: this.activePuyoPairState.axisPuyo.position.x,
+        freePuyo: this.activePuyoPairState.freePuyo.position.x
+      };
+      const targetRow = {
+        axisPuyo: this.activePuyoPairState.axisPuyo.position.y,
+        freePuyo: this.activePuyoPairState.freePuyo.position.y
+      };
+      const dropDistances = this.getActivePairDropDistances();
+
+      const targetCells = {
+        axisPuyo: this.gameField.matrix[targetCol.axisPuyo][dropDistances.axisPuyo - 1],
+        freePuyo: this.gameField.matrix[targetCol.freePuyo][dropDistances.freePuyo - 1 - (targetRow.axisPuyo - targetRow.freePuyo)]
+      }
+
+      const axisColEmptyCells = this.gameField.matrix[targetCol.axisPuyo].filter(cell => cell.isEmpty).length;
+      const freeColEmptyCells = this.gameField.matrix[targetCol.freePuyo].filter(cell => cell.isEmpty).length;
+      if (targetCol.axisPuyo === targetCol.freePuyo && axisColEmptyCells >= 2) {
+        targetCells.axisPuyo.p = this.activePuyoPairState.axisPuyo.color;
+        targetCells.freePuyo.p = this.activePuyoPairState.freePuyo.color;
+      } else if (targetCol.axisPuyo !== targetCol.freePuyo && axisColEmptyCells >= 1 && freeColEmptyCells >= 1) {
+        targetCells.axisPuyo.p = this.activePuyoPairState.axisPuyo.color;
+        targetCells.freePuyo.p = this.activePuyoPairState.freePuyo.color;
+      }
+      this.refreshPuyoSprites();
+
+      this.activePuyoPair.forEach(puyo => puyo.visible = false);
+      this.activeShadowPuyoPair.forEach(puyo => puyo.visible = false);
+      
+      if (this.state === this.simulatorPaused) {
+        this.state = this.idleState;
+      }
+
+
+      this.frame = 0;
+      this.gameField.chainLength = 0;
+      this.gameField.linkScore = 0;
+      this.gameField.totalScore = 0;
+      this.gameField.linkBonusMultiplier = 0;
+      this.gameField.linkPuyoMultiplier = 0;
+      this.gameField.leftoverNuisancePoints = 0;
+      this.gameField.totalGarbage = 0;
+      this.gameField.linkGarbage = 0;
+      this.gameField.hasPops = false;
+      this.gameField.hasDrops = false;
+      this.gameField.refreshLinkData();
+      this.gameField.refreshPuyoPositionData();
+      this.gameField.setConnectionData();
+      this.refreshGarbageIcons();
+      this.refreshShadowSprites();
+      this.refreshArrowSprites();
+      this.refreshCursorSprites();
+      this.updateScoreDisplay();
+      this.updateChainCounterDisplay();
+
+      this.autoAdvance = true;
+      this.simulationSpeed = 1;
+      this.gameField.advanceState();
+    }
   }
 
   // private initGamePlayAnimations(): any {
@@ -1629,36 +1958,236 @@ export default class ChainsimEditor {
 
   private initGameControls(): void {
     const gameControlsList = [];
-    
+
+    const rotationStateHandler = (direction: string): boolean => {
+      const axisPuyoState = this.activePuyoPairState.axisPuyo;
+      const freePuyoState = this.activePuyoPairState.freePuyo;
+
+      // Don't rotate if Puyos are in the middle of animations
+      if (
+        this.activePuyoPairState.axisPuyo.animationState !== "idle" ||
+        this.activePuyoPairState.freePuyo.animationState !== "idle"
+      ) {
+        return false;
+      }
+
+      // In the middle columns, rotate the freePuyo freely.
+      if (axisPuyoState.position.x > 0 && axisPuyoState.position.x < 5) {
+        if (direction === "ccw") {
+          if (freePuyoState.position.y === -2) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x -= 1;
+          } else if (
+            freePuyoState.position.y === -1 &&
+            freePuyoState.position.x > axisPuyoState.position.x
+          ) {
+            freePuyoState.position.y = -2;
+            freePuyoState.position.x -= 1;
+          } else if (
+            freePuyoState.position.y === -1 &&
+            freePuyoState.position.x < axisPuyoState.position.x &&
+            this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
+          ) {
+            freePuyoState.position.y = 0;
+            freePuyoState.position.x += 1;
+          } else if (freePuyoState.position.y === 0) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x += 1;
+          }
+        } else if (direction === "cw") {
+          if (freePuyoState.position.y === -2) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x += 1;
+          } else if (
+            freePuyoState.position.y === -1 &&
+            freePuyoState.position.x > axisPuyoState.position.x &&
+            this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
+          ) {
+            freePuyoState.position.y = 0;
+            freePuyoState.position.x -= 1;
+          } else if (
+            freePuyoState.position.y === -1 &&
+            freePuyoState.position.x < axisPuyoState.position.x
+          ) {
+            freePuyoState.position.y = -2;
+            freePuyoState.position.x += 1;
+          } else if (freePuyoState.position.y === 0) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x -= 1;
+          }
+
+          return true;
+        }
+      } else if (axisPuyoState.position.x === 0) {
+        if (direction === "ccw") {
+          if (freePuyoState.position.y === -2) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x = 0;
+            axisPuyoState.position.x += 1;
+          } else if (
+            freePuyoState.position.y === -1
+          ) {
+            freePuyoState.position.y = -2;
+            freePuyoState.position.x -= 1;
+          } else if (freePuyoState.position.y === 0) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x += 1;
+          }
+        } else if (direction === "cw") {
+          if (freePuyoState.position.y === -2) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x += 1;
+          } else if (
+            freePuyoState.position.y === -1 &&
+            this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
+          ) {
+            freePuyoState.position.y = 0;
+            freePuyoState.position.x -= 1;
+          } else if (freePuyoState.position.y === 0) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x = 0;
+            axisPuyoState.position.x += 1;
+          }
+        }
+        return true;
+      } else if (axisPuyoState.position.x === 5) {
+        if (direction === "ccw") {
+          if (freePuyoState.position.y === -2) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x -= 1;
+          } else if (
+            freePuyoState.position.y === -1 &&
+            this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
+          ) {
+            freePuyoState.position.y = 0;
+            freePuyoState.position.x += 1;
+          } else if (freePuyoState.position.y === 0) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x = 5;
+            axisPuyoState.position.x -= 1;
+          }
+        } else if (direction === "cw") {
+          if (freePuyoState.position.y === -2) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x = 5;
+            axisPuyoState.position.x -= 1;
+          } else if (
+            freePuyoState.position.y === -1
+          ) {
+            freePuyoState.position.y = -2;
+            freePuyoState.position.x += 1;
+          } else if (freePuyoState.position.y === 0) {
+            freePuyoState.position.y = -1;
+            freePuyoState.position.x -= 1;
+          }
+        }
+        return true;
+      }
+      return false;
+    };
+
+    const lateralStateHandler = (direction: string): boolean => {
+      const axisPuyoState = this.activePuyoPairState.axisPuyo;
+      const freePuyoState = this.activePuyoPairState.freePuyo;
+      if (direction === "left" && axisPuyoState.position.x > 0 && freePuyoState.position.x > 0) {
+        axisPuyoState.position.x -= 1;
+        freePuyoState.position.x -= 1;
+        return true;
+      } else if (
+        direction === "right" &&
+        axisPuyoState.position.x < 5 &&
+        freePuyoState.position.x < 5
+      ) {
+        axisPuyoState.position.x += 1;
+        freePuyoState.position.x += 1;
+        return true;
+      }
+      return false;
+    };
+
     this.gameControls.rotateLeft = new Sprite(this.fieldSprites["btn_rotateleft.png"]);
     this.gameControls.rotateLeft.x = 456 + 4;
     this.gameControls.rotateLeft.y = 568;
+    this.gameControls.rotateLeft.on("pointerdown", () => {
+      this.gameControls.rotateLeft.texture = this.fieldSprites["btn_rotateleft_pressed.png"];
+      rotationStateHandler("ccw");
+      this.moveActivePair();
+    });
+    this.gameControls.rotateLeft.on("pointerup", () => {
+      this.gameControls.rotateLeft.texture = this.fieldSprites["btn_rotateleft.png"];
+    });
+    this.gameControls.rotateLeft.on("pointerupoutside", () => {
+      this.gameControls.rotateLeft.texture = this.fieldSprites["btn_rotateleft.png"];
+    });
     gameControlsList.push(this.gameControls.rotateLeft);
-    
+
     this.gameControls.rotateRight = new Sprite(this.fieldSprites["btn_rotateright.png"]);
     this.gameControls.rotateRight.x = 528 + 4;
     this.gameControls.rotateRight.y = 568;
+    this.gameControls.rotateRight.on("pointerdown", () => {
+      this.gameControls.rotateRight.texture = this.fieldSprites["btn_rotateright_pressed.png"];
+      rotationStateHandler("cw");
+      this.moveActivePair();
+    });
+    this.gameControls.rotateRight.on("pointerup", () => {
+      this.gameControls.rotateRight.texture = this.fieldSprites["btn_rotateright.png"];
+    });
+    this.gameControls.rotateRight.on("pointerupoutside", () => {
+      this.gameControls.rotateRight.texture = this.fieldSprites["btn_rotateright.png"];
+    });
     gameControlsList.push(this.gameControls.rotateRight);
-    
+
     this.gameControls.left = new Sprite(this.fieldSprites["btn_left.png"]);
     this.gameControls.left.x = 456 + 4;
     this.gameControls.left.y = 640;
+    this.gameControls.left.on("pointerdown", () => {
+      this.gameControls.left.texture = this.fieldSprites["btn_left_pressed.png"];
+      lateralStateHandler("left");
+      this.moveActivePair();
+    });
+    this.gameControls.left.on("pointerup", () => {
+      this.gameControls.left.texture = this.fieldSprites["btn_left.png"];
+    });
+    this.gameControls.left.on("pointerupoutside", () => {
+      this.gameControls.left.texture = this.fieldSprites["btn_left.png"];
+    });
     gameControlsList.push(this.gameControls.left);
 
     this.gameControls.right = new Sprite(this.fieldSprites["btn_right.png"]);
     this.gameControls.right.x = 528 + 4;
     this.gameControls.right.y = 640;
+    this.gameControls.right.on("pointerdown", () => {
+      this.gameControls.right.texture = this.fieldSprites["btn_right_pressed.png"];
+      lateralStateHandler("right");
+      this.moveActivePair();
+    });
+    this.gameControls.right.on("pointerup", () => {
+      this.gameControls.right.texture = this.fieldSprites["btn_right.png"];
+    });
+    this.gameControls.right.on("pointerupoutside", () => {
+      this.gameControls.right.texture = this.fieldSprites["btn_right.png"];
+    });
     gameControlsList.push(this.gameControls.right);
 
     this.gameControls.down = new Sprite(this.fieldSprites["btn_down.png"]);
     this.gameControls.down.x = 492 + 4;
     this.gameControls.down.y = 712;
+    this.gameControls.down.on("pointerdown", () => {
+      this.gameControls.down.texture = this.fieldSprites["btn_down_pressed.png"];
+      this.dropActivePair();
+    });
+    this.gameControls.down.on("pointerup", () => {
+      this.gameControls.down.texture = this.fieldSprites["btn_down.png"];
+    });
+    this.gameControls.down.on("pointerupoutside", () => {
+      this.gameControls.down.texture = this.fieldSprites["btn_down.png"];
+    });
     gameControlsList.push(this.gameControls.down);
-
 
     gameControlsList.forEach(sprite => {
       sprite.interactive = true;
       sprite.buttonMode = true;
+      sprite.visible = false;
       this.app.stage.addChild(sprite);
     });
   }
@@ -1669,9 +2198,7 @@ export default class ChainsimEditor {
     let x = 0;
     let y = 0;
 
-    this.importantButtons.learn = new Sprite(
-      this.resources["/chainsim/img/btn_learn.png"].texture
-    );
+    this.importantButtons.learn = new Sprite(this.resources["/chainsim/img/btn_learn.png"].texture);
     this.importantButtons.learn.x = startX + 65 * x;
     this.importantButtons.learn.y = startY + 65 * y;
     this.importantButtons.learn.scale.set(0.9028, 0.9028);
@@ -1742,14 +2269,10 @@ export default class ChainsimEditor {
       ].texture;
     });
     this.importantButtons.config.on("pointerup", () => {
-      this.importantButtons.config.texture = this.resources[
-        "/chainsim/img/btn_config.png"
-      ].texture;
+      this.importantButtons.config.texture = this.resources["/chainsim/img/btn_config.png"].texture;
     });
     this.importantButtons.config.on("pointerupoutside", () => {
-      this.importantButtons.config.texture = this.resources[
-        "/chainsim/img/btn_config.png"
-      ].texture;
+      this.importantButtons.config.texture = this.resources["/chainsim/img/btn_config.png"].texture;
     });
     this.app.stage.addChild(this.importantButtons.config);
   }
@@ -1894,9 +2417,9 @@ export default class ChainsimEditor {
         }
       }
     }
+
     this.state(delta);
   }
-
 
   private idleState(delta: number): void {
     if (this.gameField.simState === "checkingDrops") {
@@ -1913,7 +2436,11 @@ export default class ChainsimEditor {
   }
 
   private simulatorPaused(delta: number): void {
-    // Do nothing
+    // Set animateNextWindow if gameMode is set to endless
+    if (this.gameMode === "endless") {
+      this.gameField.simState = "idle";
+      this.state = this.animateNextWindow;
+    }
   }
 
   private animateFieldDrops(delta: number): void {
@@ -2177,7 +2704,8 @@ export default class ChainsimEditor {
           this.simulationSpeed = 1;
         }
       }
-    } else if (this.gameField.simState === "popped") {
+    // } else if (this.gameField.simState === "popped") {
+    } else {
       this.frame = 0;
 
       // Ensure garbage icons are updated
@@ -2245,9 +2773,34 @@ export default class ChainsimEditor {
       this.nextCoord[2].y + this.nextPuyoPairs[2][0].height - (moveY[2] / duration) * this.frame;
     this.nextPuyoPairs[2][1].y = this.nextCoord[2].y - (moveY[2] / duration) * this.frame;
 
-    if (this.frame === 8) {
-      this.state = this.idleState;
+    if (this.frame >= 8) {
+      this.refreshActivePair();
+      this.activePuyoPairState = {
+        timer: 0,
+        axisPuyo: {
+          color: this.colorQueue[this.colorQueuePosition],
+          position: { x: 2, y: -1 },
+          animationState: "idle"
+        },
+        freePuyo: {
+          color: this.colorQueue[this.colorQueuePosition + 1],
+          position: { x: 2, y: -2 },
+          animationState: "idle"
+        }
+      };
+      this.moveActivePair();
       this.simulationSpeed = 1;
+      this.colorQueuePosition += 2;
+      const i = this.colorQueuePosition;
+      const colorString = this.colorQueue;
+      this.currentNextPuyos = [
+        [colorString[i], colorString[i + 1]],
+        [colorString[i + 2], colorString[i + 3]],
+        [colorString[i + 4], colorString[i + 5]]
+      ]
+      this.refreshNextPuyos();
+      this.frame = 0;
+      this.state = this.idleState;
     }
   }
 
@@ -2260,15 +2813,15 @@ export default class ChainsimEditor {
         this.cursorFrame += 1;
         for (let x = 0; x < this.simulatorSettings.cols; x++) {
           for (let y = 0; y < this.simulatorSettings.rows; y++) {
-            Math.cos(this.cursorFrame / duration * Math.PI) >= 0
+            Math.cos((this.cursorFrame / duration) * Math.PI) >= 0
               ? this.cursorDisplay[x][y].scale.set(0.9, 0.9)
-              : this.cursorDisplay[x][y].scale.set(1, 1)
+              : this.cursorDisplay[x][y].scale.set(1, 1);
 
             this.cursorDisplay[x][y].visible = true;
           }
         }
       }
-    }
+    };
 
     if (this.gameField.simState === "idle") {
       animateCursor();
@@ -2572,7 +3125,7 @@ export default class ChainsimEditor {
     }
     const arrowString = flatten2DStringArray(this.arrowField);
     const cursorString = flatten2DStringArray(this.cursorField);
-    
+
     const fieldJSON = {
       puyo: puyoString,
       shadow: shadowString,
@@ -2581,7 +3134,7 @@ export default class ChainsimEditor {
       message: ""
     };
 
-    return fieldJSON
+    return fieldJSON;
   }
 
   private generateCompressedFields(): string {
@@ -2594,7 +3147,7 @@ export default class ChainsimEditor {
       date: "2019-02-09",
       tags: ["sandwich"],
       slide: [fieldJSON]
-    }
+    };
 
     console.log(fieldJSON);
 
@@ -2609,7 +3162,7 @@ export default class ChainsimEditor {
   private decompressChainURL(compressedString: string): any {
     const fieldJSON = JSON.parse(decompressFromEncodedURIComponent(compressedString));
     console.log(fieldJSON);
-    return fieldJSON
+    return fieldJSON;
   }
 
   private enableGameMode(): void {
@@ -2623,7 +3176,7 @@ export default class ChainsimEditor {
     // Hide editor stuff
     this.fieldControls.showSimTools.visible = false;
     this.editorDisplay.toolCursor.visible = false;
-    this.editorToolDisplay.forEach(p => p.forEach(r => r.forEach(i => i.visible = false)));
+    this.editorToolDisplay.forEach(p => p.forEach(r => r.forEach(i => (i.visible = false))));
     this.editorDisplay.clearLayer.visible = false;
     this.editorDisplay.left.visible = false;
     this.editorDisplay.right.visible = false;
@@ -2639,5 +3192,13 @@ export default class ChainsimEditor {
     this.fieldControls.auto.visible = false;
 
     // Show gameplay controls
+    this.gameControls.rotateLeft.visible = true;
+    this.gameControls.rotateRight.visible = true;
+    this.gameControls.left.visible = true;
+    this.gameControls.right.visible = true;
+    this.gameControls.down.visible = true;
+
+    // Run next queue animation
+    this.state = this.animateNextWindow;
   }
 }
