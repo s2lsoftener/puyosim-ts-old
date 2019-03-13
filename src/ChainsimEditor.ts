@@ -48,6 +48,19 @@ interface ActivePairDropDistances {
   freePuyo: number;
 }
 
+interface FieldState {
+  mainLayer: string[][];
+  shadowLayer: string[][];
+  arrowLayer: string[][];
+  cursorLayer: string[][];
+  queuePosition: number;
+}
+
+interface GameHistory {
+  seed: number;
+  states: FieldState[];
+}
+
 const defaultSimulatorSettings: SimulatorSettings = {
   rows: 13,
   cols: 6,
@@ -148,6 +161,8 @@ export default class ChainsimEditor {
   public colorQueue: string;
   public colorQueuePosition: number;
   public gameStarted: boolean;
+  public gameHistory: GameHistory;
+  public gameMoveNumber: number;
 
   // // Timing
   public frame: number;
@@ -292,6 +307,11 @@ export default class ChainsimEditor {
       y: -2424
     };
     this.editorToolDisplay = [];
+    
+    // Next Queue
+    this.colorSeed = colorSeed;
+    this.colorQueue = '';
+    this.colorQueuePosition = 0;
 
     // Game states
     this.state = this.idleState;
@@ -299,6 +319,17 @@ export default class ChainsimEditor {
     this.simulatorMode = "sim"; // "edit", "sim"
     this.currentNextPuyos = [["R", "G"], ["B", "Y"], ["P", "R"]];
     this.gameStarted = false;
+    this.gameHistory = {
+      seed: 0,
+      states: [{
+        mainLayer: this.gameField.matrixText,
+        shadowLayer: this.shadowFieldText,
+        arrowLayer: this.arrowField,
+        cursorLayer: this.cursorField,
+        queuePosition: 0
+      }]
+    }
+    this.gameMoveNumber = 0;
 
     // Initialize active pair state
     this.activePuyoPairState = {
@@ -315,10 +346,6 @@ export default class ChainsimEditor {
       }
     };
 
-    // Next Queue
-    this.colorSeed = colorSeed;
-    this.colorQueue = '';
-    this.colorQueuePosition = 0;
 
     // Surfaces
     this.surfaces = [];
@@ -361,7 +388,9 @@ export default class ChainsimEditor {
       "/chainsim/img/btn_clearLayer.png",
       "/chainsim/img/btn_clearLayer_pressed.png",
       "/chainsim/img/layer_arrow.png",
-      "/chainsim/img/layer_cursor.png"
+      "/chainsim/img/layer_cursor.png",
+      "/chainsim/img/btn_undo.png",
+      "/chainsim/img/btn_undo_pressed.png"
     ];
 
     this.loader
@@ -390,6 +419,7 @@ export default class ChainsimEditor {
         this.initGameControlDisplay();
         this.initImportantButtons();
         this.setupKeyboardControls();
+        this.initGameHistory();
       })
       .onComplete.add(() => {
         this.simulatorLoaded = true;
@@ -397,10 +427,6 @@ export default class ChainsimEditor {
         this.app.ticker.add(delta => this.gameLoop(delta));
         // this.enableGameMode(); // Temporary
       });
-  }
-
-  public setNewField(fieldString: string): void {
-    // do nothing
   }
 
   private loadFromURL(): void {
@@ -447,40 +473,32 @@ export default class ChainsimEditor {
   }
 
   private setupKeyboardControls(): void {
-    console.log("Setting up keyboard controls");
     const leftPressed = () => {
       this.buttonDown("left");
-      console.log("Pressed left");
     };
 
     const leftReleased = () => {
       this.buttonUp("left");
-      console.log("Released left");
     };
 
     const rightPressed = () => {
       this.buttonDown("right");
-      console.log("Pressed right");
     };
 
     const rightReleased = () => {
       this.buttonUp("right");
-      console.log("Released right");
     };
 
     const downPressed = () => {
       this.buttonDown("down");
-      console.log("Pressed down");
     };
 
     const downReleased = () => {
       this.buttonUp("down");
-      console.log("Released down");
     };
 
     const rotateLeftPressed = () => {
       this.buttonDown("ccw");
-      console.log("Rotate ccw");
     }
 
     const rotateLeftReleased = () => {
@@ -489,7 +507,6 @@ export default class ChainsimEditor {
 
     const rotateRightPressed = () => {
       this.buttonDown("cw");
-      console.log("Rotate cw");
     }
 
     const rotateRightReleased = () => {
@@ -497,32 +514,62 @@ export default class ChainsimEditor {
     }
 
     this.keyboard = {
-      left: new Keyboard("ArrowLeft", leftPressed, leftReleased),
-      right: new Keyboard("ArrowRight", rightPressed, rightReleased),
-      down: new Keyboard("ArrowDown", downPressed, downReleased),
-      ccw: new Keyboard("z", rotateLeftPressed, rotateLeftReleased),
-      cw: new Keyboard("x", rotateRightPressed, rotateRightReleased)
+      left_r: new Keyboard("ArrowLeft", leftPressed, leftReleased),
+      right_r: new Keyboard("ArrowRight", rightPressed, rightReleased),
+      down_r: new Keyboard("ArrowDown", downPressed, downReleased),
+      ccw_r: new Keyboard("z", rotateLeftPressed, rotateLeftReleased),
+      cw_r: new Keyboard("x", rotateRightPressed, rotateRightReleased),
+      left_l: new Keyboard("a", leftPressed, leftReleased),
+      right_l: new Keyboard("d", rightPressed, rightReleased),
+      down_l: new Keyboard("s", downPressed, downReleased),
+      ccw_l: new Keyboard("o", rotateLeftPressed, rotateLeftReleased),
+      cw_l: new Keyboard("p", rotateRightPressed, rotateRightReleased)
     };
   }
 
-  private checkForCollision(direction: string): boolean {
-    const yMov = 5;
-    const xMov = 5;
-    for (const puyo of this.activePuyoPair) {
-      for (const wall of this.surfaces) {
-        if (direction === "left") {
-          if (
-            puyo.y > wall.top &&
-            puyo.y <= wall.bottom &&
-            puyo.x > wall.left &&
-            puyo.x - xMov <= wall.right
-          ) {
-            return true;
-          }
-        }
-      }
+  private initGameHistory(): void {
+    this.gameHistory = JSON.parse(JSON.stringify({
+      seed: this.colorSeed,
+      states: [{
+        mainLayer: this.gameField.matrixText,
+        shadowLayer: this.shadowFieldText,
+        arrowLayer: this.arrowField,
+        cursorLayer: this.cursorField,
+        queuePosition: this.colorQueuePosition + 2
+      }]
+    }));
+  }
+
+  private updateGameHistory(): void {
+    this.gameHistory.states[this.gameMoveNumber] = JSON.parse(JSON.stringify({
+      mainLayer: this.gameField.matrixText,
+      shadowLayer: this.shadowFieldText,
+      arrowLayer: this.arrowField,
+      cursorLayer: this.cursorField,
+      queuePosition: this.colorQueuePosition
+    }));
+  }
+
+  private addFieldStateToHistory(): void {
+    this.gameMoveNumber += 1;
+
+    if (this.gameHistory.states.length === this.gameMoveNumber) {
+      this.gameHistory.states.push(JSON.parse(JSON.stringify({
+        mainLayer: this.gameField.matrixText,
+        shadowLayer: this.shadowFieldText,
+        arrowLayer: this.arrowField,
+        cursorLayer: this.cursorField,
+        queuePosition: this.colorQueuePosition
+      })))
+    } else {
+      this.gameHistory.states[this.gameMoveNumber] = JSON.parse(JSON.stringify({
+        mainLayer: this.gameField.matrixText,
+        shadowLayer: this.shadowFieldText,
+        arrowLayer: this.arrowField,
+        cursorLayer: this.cursorField,
+        queuePosition: this.colorQueuePosition
+      }));
     }
-    return false;
   }
 
   private initFieldDisplay(): void {
@@ -1836,13 +1883,11 @@ export default class ChainsimEditor {
       dropDistances.freePuyo = emptyCells - freePuyo.position.y - 1;
       dropDistances.axisPuyo = dropDistances.freePuyo;
     }
-
-    console.log(dropDistances);
     return dropDistances;
   }
 
-  private refreshActivePair(): void {
-    const colorPair = [this.colorQueue[this.colorQueuePosition], this.colorQueue[this.colorQueuePosition + 1]];
+  private refreshActivePair(offset: number = 0): void {
+    const colorPair = [this.colorQueue[this.colorQueuePosition + offset], this.colorQueue[this.colorQueuePosition + offset + 1]];
     const colorName = colorPair.map(colorCode => {
       switch (colorCode) {
         case PuyoType.Red:
@@ -1891,7 +1936,6 @@ export default class ChainsimEditor {
     this.activePuyoPair[1].y = this.coordArray[0][0].y + newRow.freePuyo * puyoHeight;
 
     const dropDistances = this.getActivePairDropDistances();
-    console.log(dropDistances);
     
     if (dropDistances.axisPuyo - 1 >= 0 && (dropDistances.freePuyo - 1 - (newRow.axisPuyo - newRow.freePuyo)) >= 0) {
       if (newCol.axisPuyo === newCol.freePuyo && dropDistances.axisPuyo >=2 && dropDistances.freePuyo >= 2) {
@@ -1964,6 +2008,8 @@ export default class ChainsimEditor {
       this.refreshCursorSprites();
       this.updateScoreDisplay();
       this.updateChainCounterDisplay();
+
+      // this.addFieldStateToHistory();
 
       this.autoAdvance = true;
       this.simulationSpeed = 1;
@@ -2051,6 +2097,22 @@ export default class ChainsimEditor {
       this.buttonUp("down");
     });
     gameControlsList.push(this.gameControls.down);
+
+    this.gameControls.undo = new Sprite(this.resources[
+      "/chainsim/img/btn_undo.png"
+    ].texture);
+    this.gameControls.undo.x = 456;
+    this.gameControls.undo.y = 472;
+    this.gameControls.undo.on("pointerdown", () => {
+      this.buttonDown("undo");
+    });
+    this.gameControls.undo.on("pointerup", () => {
+      this.buttonUp("undo");
+    });
+    this.gameControls.undo.on("pointerupoutside", () => {
+      this.buttonUp("undo");
+    });
+    gameControlsList.push(this.gameControls.undo);
 
     gameControlsList.forEach(sprite => {
       sprite.interactive = true;
@@ -2204,6 +2266,60 @@ export default class ChainsimEditor {
     }
   }
 
+  private undoMove(): void {
+    if (this.gameMoveNumber === 0) {
+      return
+    }
+
+    this.gameMoveNumber -= 1;
+
+    const prevFields = this.gameHistory.states[this.gameMoveNumber];
+
+    this.gameField.updateFieldMatrix(prevFields.mainLayer);
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        this.shadowField[x][y] = new Puyo(prevFields.shadowLayer[x][y], x, y);
+      }
+    }
+    this.arrowField = prevFields.arrowLayer;
+    this.cursorField = prevFields.cursorLayer;
+    this.colorQueuePosition = prevFields.queuePosition;
+    
+    this.gameField.refreshLinkData();
+    this.gameField.refreshPuyoPositionData();
+    this.gameField.setConnectionData();
+    this.refreshPuyoSprites();
+    this.refreshGarbageIcons();
+    this.refreshShadowSprites();
+    this.refreshArrowSprites();
+    this.refreshCursorSprites();
+    // this.refreshCurrentNextPuyos();
+
+    this.activePuyoPairState = {
+      timer: 0,
+      axisPuyo: {
+        color: this.colorQueue[this.colorQueuePosition - 2],
+        position: { x: 2, y: -1 },
+        animationState: "idle"
+      },
+      freePuyo: {
+        color: this.colorQueue[this.colorQueuePosition - 2 + 1],
+        position: { x: 2, y: -2 },
+        animationState: "idle"
+      }
+    };
+    this.refreshActivePair(-2);
+    const i = this.colorQueuePosition;
+    const colorString = this.colorQueue;
+    this.currentNextPuyos = [
+      [colorString[i], colorString[i + 1]],
+      [colorString[i + 2], colorString[i + 3]],
+      [colorString[i + 4], colorString[i + 5]]
+    ];
+    this.moveActivePair();
+    this.refreshNextPuyos();
+  }
+
   private buttonDown(input: string): void {
     if (this.gameMode === "endless" && this.state === this.idleState) {
       switch(input) {
@@ -2231,6 +2347,12 @@ export default class ChainsimEditor {
           this.gameControls.down.texture = this.fieldSprites["btn_down_pressed.png"];
           this.dropActivePair();
           break;
+        case "undo":
+          this.gameControls.undo.texture = this.resources[
+            "/chainsim/img/btn_undo_pressed.png"
+          ].texture;
+          this.undoMove();
+          break;
       }
     }
   }
@@ -2252,6 +2374,11 @@ export default class ChainsimEditor {
           break;
         case "down":
           this.gameControls.down.texture = this.fieldSprites["btn_down.png"];
+          break;
+        case "undo":
+          this.gameControls.undo.texture = this.resources[
+            "/chainsim/img/btn_undo.png"
+          ].texture;
           break;
       }
     }
@@ -2454,6 +2581,17 @@ export default class ChainsimEditor {
     this.state = this.idleState;
   }
 
+  private get shadowFieldText(): string[][] {
+    const textMatrix: string[][] = [];
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      textMatrix[x] = [];
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        textMatrix[x][y] = this.shadowField[x][y].p;
+      }
+    }
+    return textMatrix;
+  }
+
   private gameLoop(delta: number): void {
     // let speedX = this.activePuyoPair[0].vx;
     // const speedY = this.activePuyoPair[0].vy;
@@ -2483,7 +2621,6 @@ export default class ChainsimEditor {
         }
       }
     }
-
     this.state(delta);
   }
 
@@ -2491,13 +2628,11 @@ export default class ChainsimEditor {
     if (this.gameField.simState === "checkingDrops") {
       this.refreshPuyoSprites();
       this.state = this.animateFieldDrops;
-      console.log(JSON.parse(JSON.stringify(this.gameField.dropDistances)));
     }
     if (this.gameField.simState === "checkingPops") {
       this.refreshPuyoSprites();
       this.updateScoreDisplay();
       this.state = this.animatePops;
-      console.log(JSON.parse(JSON.stringify(this.gameField.dropDistances)));
     }
   }
 
@@ -2854,9 +2989,7 @@ export default class ChainsimEditor {
           animationState: "idle"
         }
       };
-      console.log("A");
       this.moveActivePair();
-      console.log("B");
       this.simulationSpeed = 1;
       this.colorQueuePosition += 2;
       const i = this.colorQueuePosition;
@@ -2867,9 +3000,39 @@ export default class ChainsimEditor {
         [colorString[i + 4], colorString[i + 5]]
       ]
       this.refreshNextPuyos();
+
+      this.addFieldStateToHistory();
+
+
       this.frame = 0;
       this.state = this.idleState;
     }
+  }
+
+  private refreshCurrentNextPuyos(): void {
+    this.activePuyoPairState = {
+      timer: 0,
+      axisPuyo: {
+        color: this.colorQueue[this.colorQueuePosition],
+        position: { x: 2, y: -1 },
+        animationState: "idle"
+      },
+      freePuyo: {
+        color: this.colorQueue[this.colorQueuePosition + 1],
+        position: { x: 2, y: -2 },
+        animationState: "idle"
+      }
+    };
+    const i = this.colorQueuePosition;
+    const colorString = this.colorQueue;
+    this.currentNextPuyos = [
+      [colorString[i], colorString[i + 1]],
+      [colorString[i + 2], colorString[i + 3]],
+      [colorString[i + 4], colorString[i + 5]]
+    ];
+    this.refreshActivePair();
+    this.moveActivePair();
+    this.refreshNextPuyos();
   }
 
   private animateFieldCursors(delta: number): void {
@@ -3283,6 +3446,7 @@ export default class ChainsimEditor {
     this.gameControls.left.visible = false;
     this.gameControls.right.visible = false;
     this.gameControls.down.visible = false;
+    this.gameControls.undo.visible = false;
 
     this.toggleTools();
 
@@ -3323,6 +3487,7 @@ export default class ChainsimEditor {
     this.gameControls.left.visible = true;
     this.gameControls.right.visible = true;
     this.gameControls.down.visible = true;
+    this.gameControls.undo.visible = true;
 
     // Run next queue animation
     if (this.gameStarted === false) {
