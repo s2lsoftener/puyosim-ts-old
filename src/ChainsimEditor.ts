@@ -147,6 +147,7 @@ export default class ChainsimEditor {
   public colorSeed: any;
   public colorQueue: string;
   public colorQueuePosition: number;
+  public gameStarted: boolean;
 
   // // Timing
   public frame: number;
@@ -297,6 +298,7 @@ export default class ChainsimEditor {
     this.gameMode = "editor"; // "editor", "endless", "tutorial"
     this.simulatorMode = "sim"; // "edit", "sim"
     this.currentNextPuyos = [["R", "G"], ["B", "Y"], ["P", "R"]];
+    this.gameStarted = false;
 
     // Initialize active pair state
     this.activePuyoPairState = {
@@ -370,7 +372,7 @@ export default class ChainsimEditor {
         this.puyoSprites = resources["/chainsim/img/puyo.json"].textures;
         this.chainCountSprites = resources["/chainsim/img/chain_font.json"].textures;
         this.scoreCountSprites = resources["/chainsim/img/scoreFont.json"].textures;
-        this.initColorQueue('RRGG', 24);
+        this.initColorQueue();
         this.initFieldDisplay();
         this.initScoreDisplay();
         this.initGameOverX();
@@ -385,9 +387,9 @@ export default class ChainsimEditor {
         this.initNextPuyos();
         this.initEditorDisplay();
         this.initActivePair();
-        this.initGameControls();
+        this.initGameControlDisplay();
         this.initImportantButtons();
-        // this.setupKeyboardControls();
+        this.setupKeyboardControls();
       })
       .onComplete.add(() => {
         this.simulatorLoaded = true;
@@ -444,44 +446,64 @@ export default class ChainsimEditor {
     }
   }
 
-  // private setupKeyboardControls(): void {
-  //   console.log("Setting up keyboard controls");
-  //   const leftPressed = () => {
-  //     this.activePuyoPair.forEach(puyo => (puyo.vx = -5));
-  //     console.log("Pressed left");
-  //   };
+  private setupKeyboardControls(): void {
+    console.log("Setting up keyboard controls");
+    const leftPressed = () => {
+      this.buttonDown("left");
+      console.log("Pressed left");
+    };
 
-  //   const leftReleased = () => {
-  //     this.activePuyoPair.forEach(puyo => (puyo.vx = 0));
-  //     console.log("Released left");
-  //   };
+    const leftReleased = () => {
+      this.buttonUp("left");
+      console.log("Released left");
+    };
 
-  //   const rightPressed = () => {
-  //     this.activePuyoPair.forEach(puyo => (puyo.vx = 5));
-  //     console.log("Pressed right");
-  //   };
+    const rightPressed = () => {
+      this.buttonDown("right");
+      console.log("Pressed right");
+    };
 
-  //   const rightReleased = () => {
-  //     this.activePuyoPair.forEach(puyo => (puyo.vx = 0));
-  //     console.log("Released right");
-  //   };
+    const rightReleased = () => {
+      this.buttonUp("right");
+      console.log("Released right");
+    };
 
-  //   const downPressed = () => {
-  //     this.activePuyoPair.forEach(puyo => (puyo.vy = 5));
-  //     console.log("Pressed down");
-  //   };
+    const downPressed = () => {
+      this.buttonDown("down");
+      console.log("Pressed down");
+    };
 
-  //   const downReleased = () => {
-  //     this.activePuyoPair.forEach(puyo => (puyo.vy = 0));
-  //     console.log("Released down");
-  //   };
+    const downReleased = () => {
+      this.buttonUp("down");
+      console.log("Released down");
+    };
 
-  //   this.keyboard = {
-  //     left: new Keyboard("ArrowLeft", leftPressed, leftReleased),
-  //     right: new Keyboard("ArrowRight", rightPressed, rightReleased),
-  //     down: new Keyboard("ArrowDown", downPressed, downReleased)
-  //   };
-  // }
+    const rotateLeftPressed = () => {
+      this.buttonDown("ccw");
+      console.log("Rotate ccw");
+    }
+
+    const rotateLeftReleased = () => {
+      this.buttonUp("ccw");
+    }
+
+    const rotateRightPressed = () => {
+      this.buttonDown("cw");
+      console.log("Rotate cw");
+    }
+
+    const rotateRightReleased = () => {
+      this.buttonUp("cw");
+    }
+
+    this.keyboard = {
+      left: new Keyboard("ArrowLeft", leftPressed, leftReleased),
+      right: new Keyboard("ArrowRight", rightPressed, rightReleased),
+      down: new Keyboard("ArrowDown", downPressed, downReleased),
+      ccw: new Keyboard("z", rotateLeftPressed, rotateLeftReleased),
+      cw: new Keyboard("x", rotateRightPressed, rotateRightReleased)
+    };
+  }
 
   private checkForCollision(direction: string): boolean {
     const yMov = 5;
@@ -987,7 +1009,7 @@ export default class ChainsimEditor {
         "/chainsim/img/btn_puyo_pressed.png"
       ].texture;
 
-      this.resetFieldAndState();
+      // this.resetFieldAndState();
     });
     this.app.stage.addChild(this.fieldControls.showEditTools);
 
@@ -1869,8 +1891,9 @@ export default class ChainsimEditor {
     this.activePuyoPair[1].y = this.coordArray[0][0].y + newRow.freePuyo * puyoHeight;
 
     const dropDistances = this.getActivePairDropDistances();
+    console.log(dropDistances);
     
-    if (dropDistances.axisPuyo - 1 >= 0) {
+    if (dropDistances.axisPuyo - 1 >= 0 && (dropDistances.freePuyo - 1 - (newRow.axisPuyo - newRow.freePuyo)) >= 0) {
       if (newCol.axisPuyo === newCol.freePuyo && dropDistances.axisPuyo >=2 && dropDistances.freePuyo >= 2) {
         this.activeShadowPuyoPair.forEach(puyo => puyo.visible = true);
       } else if (newCol.axisPuyo !== newCol.freePuyo && dropDistances.axisPuyo >= 1 && dropDistances.freePuyo >= 1) {
@@ -1956,168 +1979,20 @@ export default class ChainsimEditor {
   //   }
   // }
 
-  private initGameControls(): void {
+  private initGameControlDisplay(): void {
     const gameControlsList = [];
-
-    const rotationStateHandler = (direction: string): boolean => {
-      const axisPuyoState = this.activePuyoPairState.axisPuyo;
-      const freePuyoState = this.activePuyoPairState.freePuyo;
-
-      // Don't rotate if Puyos are in the middle of animations
-      if (
-        this.activePuyoPairState.axisPuyo.animationState !== "idle" ||
-        this.activePuyoPairState.freePuyo.animationState !== "idle"
-      ) {
-        return false;
-      }
-
-      // In the middle columns, rotate the freePuyo freely.
-      if (axisPuyoState.position.x > 0 && axisPuyoState.position.x < 5) {
-        if (direction === "ccw") {
-          if (freePuyoState.position.y === -2) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x -= 1;
-          } else if (
-            freePuyoState.position.y === -1 &&
-            freePuyoState.position.x > axisPuyoState.position.x
-          ) {
-            freePuyoState.position.y = -2;
-            freePuyoState.position.x -= 1;
-          } else if (
-            freePuyoState.position.y === -1 &&
-            freePuyoState.position.x < axisPuyoState.position.x &&
-            this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
-          ) {
-            freePuyoState.position.y = 0;
-            freePuyoState.position.x += 1;
-          } else if (freePuyoState.position.y === 0) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x += 1;
-          }
-        } else if (direction === "cw") {
-          if (freePuyoState.position.y === -2) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x += 1;
-          } else if (
-            freePuyoState.position.y === -1 &&
-            freePuyoState.position.x > axisPuyoState.position.x &&
-            this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
-          ) {
-            freePuyoState.position.y = 0;
-            freePuyoState.position.x -= 1;
-          } else if (
-            freePuyoState.position.y === -1 &&
-            freePuyoState.position.x < axisPuyoState.position.x
-          ) {
-            freePuyoState.position.y = -2;
-            freePuyoState.position.x += 1;
-          } else if (freePuyoState.position.y === 0) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x -= 1;
-          }
-
-          return true;
-        }
-      } else if (axisPuyoState.position.x === 0) {
-        if (direction === "ccw") {
-          if (freePuyoState.position.y === -2) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x = 0;
-            axisPuyoState.position.x += 1;
-          } else if (
-            freePuyoState.position.y === -1
-          ) {
-            freePuyoState.position.y = -2;
-            freePuyoState.position.x -= 1;
-          } else if (freePuyoState.position.y === 0) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x += 1;
-          }
-        } else if (direction === "cw") {
-          if (freePuyoState.position.y === -2) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x += 1;
-          } else if (
-            freePuyoState.position.y === -1 &&
-            this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
-          ) {
-            freePuyoState.position.y = 0;
-            freePuyoState.position.x -= 1;
-          } else if (freePuyoState.position.y === 0) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x = 0;
-            axisPuyoState.position.x += 1;
-          }
-        }
-        return true;
-      } else if (axisPuyoState.position.x === 5) {
-        if (direction === "ccw") {
-          if (freePuyoState.position.y === -2) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x -= 1;
-          } else if (
-            freePuyoState.position.y === -1 &&
-            this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
-          ) {
-            freePuyoState.position.y = 0;
-            freePuyoState.position.x += 1;
-          } else if (freePuyoState.position.y === 0) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x = 5;
-            axisPuyoState.position.x -= 1;
-          }
-        } else if (direction === "cw") {
-          if (freePuyoState.position.y === -2) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x = 5;
-            axisPuyoState.position.x -= 1;
-          } else if (
-            freePuyoState.position.y === -1
-          ) {
-            freePuyoState.position.y = -2;
-            freePuyoState.position.x += 1;
-          } else if (freePuyoState.position.y === 0) {
-            freePuyoState.position.y = -1;
-            freePuyoState.position.x -= 1;
-          }
-        }
-        return true;
-      }
-      return false;
-    };
-
-    const lateralStateHandler = (direction: string): boolean => {
-      const axisPuyoState = this.activePuyoPairState.axisPuyo;
-      const freePuyoState = this.activePuyoPairState.freePuyo;
-      if (direction === "left" && axisPuyoState.position.x > 0 && freePuyoState.position.x > 0) {
-        axisPuyoState.position.x -= 1;
-        freePuyoState.position.x -= 1;
-        return true;
-      } else if (
-        direction === "right" &&
-        axisPuyoState.position.x < 5 &&
-        freePuyoState.position.x < 5
-      ) {
-        axisPuyoState.position.x += 1;
-        freePuyoState.position.x += 1;
-        return true;
-      }
-      return false;
-    };
 
     this.gameControls.rotateLeft = new Sprite(this.fieldSprites["btn_rotateleft.png"]);
     this.gameControls.rotateLeft.x = 456 + 4;
     this.gameControls.rotateLeft.y = 568;
     this.gameControls.rotateLeft.on("pointerdown", () => {
-      this.gameControls.rotateLeft.texture = this.fieldSprites["btn_rotateleft_pressed.png"];
-      rotationStateHandler("ccw");
-      this.moveActivePair();
+      this.buttonDown("ccw");
     });
     this.gameControls.rotateLeft.on("pointerup", () => {
-      this.gameControls.rotateLeft.texture = this.fieldSprites["btn_rotateleft.png"];
+      this.buttonUp("ccw");
     });
     this.gameControls.rotateLeft.on("pointerupoutside", () => {
-      this.gameControls.rotateLeft.texture = this.fieldSprites["btn_rotateleft.png"];
+      this.buttonUp("ccw");
     });
     gameControlsList.push(this.gameControls.rotateLeft);
 
@@ -2125,15 +2000,13 @@ export default class ChainsimEditor {
     this.gameControls.rotateRight.x = 528 + 4;
     this.gameControls.rotateRight.y = 568;
     this.gameControls.rotateRight.on("pointerdown", () => {
-      this.gameControls.rotateRight.texture = this.fieldSprites["btn_rotateright_pressed.png"];
-      rotationStateHandler("cw");
-      this.moveActivePair();
+      this.buttonDown("cw");
     });
     this.gameControls.rotateRight.on("pointerup", () => {
-      this.gameControls.rotateRight.texture = this.fieldSprites["btn_rotateright.png"];
+      this.buttonUp("cw");
     });
     this.gameControls.rotateRight.on("pointerupoutside", () => {
-      this.gameControls.rotateRight.texture = this.fieldSprites["btn_rotateright.png"];
+      this.buttonUp("cw");
     });
     gameControlsList.push(this.gameControls.rotateRight);
 
@@ -2141,15 +2014,13 @@ export default class ChainsimEditor {
     this.gameControls.left.x = 456 + 4;
     this.gameControls.left.y = 640;
     this.gameControls.left.on("pointerdown", () => {
-      this.gameControls.left.texture = this.fieldSprites["btn_left_pressed.png"];
-      lateralStateHandler("left");
-      this.moveActivePair();
+      this.buttonDown("left");
     });
     this.gameControls.left.on("pointerup", () => {
-      this.gameControls.left.texture = this.fieldSprites["btn_left.png"];
+      this.buttonUp("left");
     });
     this.gameControls.left.on("pointerupoutside", () => {
-      this.gameControls.left.texture = this.fieldSprites["btn_left.png"];
+      this.buttonUp("left");
     });
     gameControlsList.push(this.gameControls.left);
 
@@ -2157,15 +2028,13 @@ export default class ChainsimEditor {
     this.gameControls.right.x = 528 + 4;
     this.gameControls.right.y = 640;
     this.gameControls.right.on("pointerdown", () => {
-      this.gameControls.right.texture = this.fieldSprites["btn_right_pressed.png"];
-      lateralStateHandler("right");
-      this.moveActivePair();
+      this.buttonDown("right");
     });
     this.gameControls.right.on("pointerup", () => {
-      this.gameControls.right.texture = this.fieldSprites["btn_right.png"];
+      this.buttonUp("right");
     });
     this.gameControls.right.on("pointerupoutside", () => {
-      this.gameControls.right.texture = this.fieldSprites["btn_right.png"];
+      this.buttonUp("right");
     });
     gameControlsList.push(this.gameControls.right);
 
@@ -2173,14 +2042,13 @@ export default class ChainsimEditor {
     this.gameControls.down.x = 492 + 4;
     this.gameControls.down.y = 712;
     this.gameControls.down.on("pointerdown", () => {
-      this.gameControls.down.texture = this.fieldSprites["btn_down_pressed.png"];
-      this.dropActivePair();
+      this.buttonDown("down");
     });
     this.gameControls.down.on("pointerup", () => {
-      this.gameControls.down.texture = this.fieldSprites["btn_down.png"];
+      this.buttonUp("down");
     });
     this.gameControls.down.on("pointerupoutside", () => {
-      this.gameControls.down.texture = this.fieldSprites["btn_down.png"];
+      this.buttonUp("down");
     });
     gameControlsList.push(this.gameControls.down);
 
@@ -2190,6 +2058,203 @@ export default class ChainsimEditor {
       sprite.visible = false;
       this.app.stage.addChild(sprite);
     });
+  }
+
+  private rotatePuyo(direction: string): boolean {
+    const axisPuyoState = this.activePuyoPairState.axisPuyo;
+    const freePuyoState = this.activePuyoPairState.freePuyo;
+
+    // Don't rotate if Puyos are in the middle of animations
+    if (
+      this.activePuyoPairState.axisPuyo.animationState !== "idle" ||
+      this.activePuyoPairState.freePuyo.animationState !== "idle"
+    ) {
+      return false;
+    }
+
+    // In the middle columns, rotate the freePuyo freely.
+    if (axisPuyoState.position.x > 0 && axisPuyoState.position.x < 5) {
+      if (direction === "ccw") {
+        if (freePuyoState.position.y === -2) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x -= 1;
+        } else if (
+          freePuyoState.position.y === -1 &&
+          freePuyoState.position.x > axisPuyoState.position.x
+        ) {
+          freePuyoState.position.y = -2;
+          freePuyoState.position.x -= 1;
+        } else if (
+          freePuyoState.position.y === -1 &&
+          freePuyoState.position.x < axisPuyoState.position.x &&
+          this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
+        ) {
+          freePuyoState.position.y = 0;
+          freePuyoState.position.x += 1;
+        } else if (freePuyoState.position.y === 0) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x += 1;
+        }
+      } else if (direction === "cw") {
+        if (freePuyoState.position.y === -2) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x += 1;
+        } else if (
+          freePuyoState.position.y === -1 &&
+          freePuyoState.position.x > axisPuyoState.position.x &&
+          this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
+        ) {
+          freePuyoState.position.y = 0;
+          freePuyoState.position.x -= 1;
+        } else if (
+          freePuyoState.position.y === -1 &&
+          freePuyoState.position.x < axisPuyoState.position.x
+        ) {
+          freePuyoState.position.y = -2;
+          freePuyoState.position.x += 1;
+        } else if (freePuyoState.position.y === 0) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x -= 1;
+        }
+
+        return true;
+      }
+    } else if (axisPuyoState.position.x === 0) {
+      if (direction === "ccw") {
+        if (freePuyoState.position.y === -2) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x = 0;
+          axisPuyoState.position.x += 1;
+        } else if (
+          freePuyoState.position.y === -1
+        ) {
+          freePuyoState.position.y = -2;
+          freePuyoState.position.x -= 1;
+        } else if (freePuyoState.position.y === 0) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x += 1;
+        }
+      } else if (direction === "cw") {
+        if (freePuyoState.position.y === -2) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x += 1;
+        } else if (
+          freePuyoState.position.y === -1 &&
+          this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
+        ) {
+          freePuyoState.position.y = 0;
+          freePuyoState.position.x -= 1;
+        } else if (freePuyoState.position.y === 0) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x = 0;
+          axisPuyoState.position.x += 1;
+        }
+      }
+      return true;
+    } else if (axisPuyoState.position.x === 5) {
+      if (direction === "ccw") {
+        if (freePuyoState.position.y === -2) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x -= 1;
+        } else if (
+          freePuyoState.position.y === -1 &&
+          this.gameField.matrix[axisPuyoState.position.x][0].isEmpty
+        ) {
+          freePuyoState.position.y = 0;
+          freePuyoState.position.x += 1;
+        } else if (freePuyoState.position.y === 0) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x = 5;
+          axisPuyoState.position.x -= 1;
+        }
+      } else if (direction === "cw") {
+        if (freePuyoState.position.y === -2) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x = 5;
+          axisPuyoState.position.x -= 1;
+        } else if (
+          freePuyoState.position.y === -1
+        ) {
+          freePuyoState.position.y = -2;
+          freePuyoState.position.x += 1;
+        } else if (freePuyoState.position.y === 0) {
+          freePuyoState.position.y = -1;
+          freePuyoState.position.x -= 1;
+        }
+      }
+      return true;
+    }
+    return false;
+  }
+
+  private translatePuyo(direction: string): void {
+    const axisPuyoState = this.activePuyoPairState.axisPuyo;
+    const freePuyoState = this.activePuyoPairState.freePuyo;
+    
+    if (direction === "left" && axisPuyoState.position.x > 0 && freePuyoState.position.x > 0) {
+      axisPuyoState.position.x -= 1;
+      freePuyoState.position.x -= 1;
+    } else if (
+      direction === "right" &&
+      axisPuyoState.position.x < 5 &&
+      freePuyoState.position.x < 5
+    ) {
+      axisPuyoState.position.x += 1;
+      freePuyoState.position.x += 1;
+    }
+  }
+
+  private buttonDown(input: string): void {
+    if (this.gameMode === "endless" && this.state === this.idleState) {
+      switch(input) {
+        case "ccw":
+          this.gameControls.rotateLeft.texture = this.fieldSprites["btn_rotateleft_pressed.png"];
+          this.rotatePuyo("ccw");
+          this.moveActivePair();
+          break;
+        case "cw":
+          this.gameControls.rotateRight.texture = this.fieldSprites["btn_rotateright_pressed.png"];
+          this.rotatePuyo("cw");
+          this.moveActivePair();
+          break;
+        case "left":
+          this.gameControls.left.texture = this.fieldSprites["btn_left_pressed.png"];
+          this.translatePuyo("left");
+          this.moveActivePair();
+          break;
+        case "right":
+          this.gameControls.right.texture = this.fieldSprites["btn_right_pressed.png"];
+          this.translatePuyo("right");
+          this.moveActivePair();
+          break;
+        case "down":
+          this.gameControls.down.texture = this.fieldSprites["btn_down_pressed.png"];
+          this.dropActivePair();
+          break;
+      }
+    }
+  }
+
+  private buttonUp(input: string): void {
+    if (this.gameMode === "endless") {
+      switch(input) {
+        case "ccw":
+          this.gameControls.rotateLeft.texture = this.fieldSprites["btn_rotateleft.png"];
+          break;
+        case "cw":
+          this.gameControls.rotateRight.texture = this.fieldSprites["btn_rotateright.png"];
+          break;
+        case "left":
+          this.gameControls.left.texture = this.fieldSprites["btn_left.png"];
+          break;
+        case "right":
+          this.gameControls.right.texture = this.fieldSprites["btn_right.png"];
+          break;
+        case "down":
+          this.gameControls.down.texture = this.fieldSprites["btn_down.png"];
+          break;
+      }
+    }
   }
 
   private initImportantButtons(): void {
@@ -2229,6 +2294,7 @@ export default class ChainsimEditor {
     });
     this.importantButtons.edit.on("pointerup", () => {
       this.importantButtons.edit.texture = this.fieldSprites["btn_edit.png"];
+      this.enableEditMode();
     });
     this.importantButtons.edit.on("pointerupoutside", () => {
       this.importantButtons.edit.texture = this.fieldSprites["btn_edit.png"];
@@ -2788,7 +2854,9 @@ export default class ChainsimEditor {
           animationState: "idle"
         }
       };
+      console.log("A");
       this.moveActivePair();
+      console.log("B");
       this.simulationSpeed = 1;
       this.colorQueuePosition += 2;
       const i = this.colorQueuePosition;
@@ -3165,13 +3233,71 @@ export default class ChainsimEditor {
     return fieldJSON;
   }
 
+  private enableEditMode(): void {
+    // Change overall game state
+    this.gameMode = "editor";
+    this.simulatorMode = "edit";
+
+    this.frame = 0;
+    this.gameField.chainLength = 0;
+    this.gameField.linkScore = 0;
+    this.gameField.totalScore = 0;
+    this.gameField.linkBonusMultiplier = 0;
+    this.gameField.linkPuyoMultiplier = 0;
+    this.gameField.leftoverNuisancePoints = 0;
+    this.gameField.totalGarbage = 0;
+    this.gameField.linkGarbage = 0;
+    this.gameField.hasPops = false;
+    this.gameField.hasDrops = false;
+    this.gameField.refreshLinkData();
+    this.gameField.refreshPuyoPositionData();
+    this.gameField.setConnectionData();
+    this.refreshGarbageIcons();
+    this.refreshShadowSprites();
+    this.refreshArrowSprites();
+    this.refreshCursorSprites();
+    this.updateScoreDisplay();
+    this.updateChainCounterDisplay();
+
+    // Show editor stuff
+    // this.editorDisplay.toolCursor.visible = true;
+    // this.editorToolDisplay.forEach(p => p.forEach(r => r.forEach(i => (i.visible = true))));
+    // this.editorDisplay.clearLayer.visible = true;
+    // this.editorDisplay.left.visible = true;
+    // this.editorDisplay.right.visible = true;
+    // this.editorDisplay.layerName.visible = true;
+    
+    // Show simulator controls
+    this.fieldControls.showSimTools.visible = true;
+    this.fieldControls.showEditTools.visible = true;
+    // this.fieldControls.share.visible = true;
+    // this.fieldControls.reset.visible = true;
+    // this.fieldControls.back.visible = true;
+    // this.fieldControls.pause.visible = true;
+    // this.fieldControls.play.visible = true;
+    // this.fieldControls.auto.visible = true;
+
+    // Hide gameplay controls
+    this.gameControls.rotateLeft.visible = false;
+    this.gameControls.rotateRight.visible = false;
+    this.gameControls.left.visible = false;
+    this.gameControls.right.visible = false;
+    this.gameControls.down.visible = false;
+
+    this.toggleTools();
+
+    // Hide active pair and shadow pair
+    this.activePuyoPair.forEach(puyo => puyo.visible = false);
+    this.activeShadowPuyoPair.forEach(puyo => puyo.visible = false);
+  }
+
   private enableGameMode(): void {
     // Change overall game state
     this.gameMode = "endless";
     this.simulatorMode = "sim";
 
     // Reset field state back to whatever the default loaded chain was.
-    this.resetFieldAndState();
+    // this.resetFieldAndState();
 
     // Hide editor stuff
     this.fieldControls.showSimTools.visible = false;
@@ -3199,6 +3325,11 @@ export default class ChainsimEditor {
     this.gameControls.down.visible = true;
 
     // Run next queue animation
-    this.state = this.animateNextWindow;
+    if (this.gameStarted === false) {
+      this.gameStarted = true;
+      this.state = this.animateNextWindow;
+    } else {
+      this.moveActivePair();
+    }
   }
 }
