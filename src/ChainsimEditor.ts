@@ -390,7 +390,9 @@ export default class ChainsimEditor {
       "/chainsim/img/layer_arrow.png",
       "/chainsim/img/layer_cursor.png",
       "/chainsim/img/btn_undo.png",
-      "/chainsim/img/btn_undo_pressed.png"
+      "/chainsim/img/btn_undo_pressed.png",
+      "/chainsim/img/btn_redo.png",
+      "/chainsim/img/btn_redo_pressed.png"
     ];
 
     this.loader
@@ -1021,7 +1023,7 @@ export default class ChainsimEditor {
     this.fieldControls.showSimTools = new Sprite(
       this.resources["/chainsim/img/btn_sim_pressed.png"].texture
     );
-    this.fieldControls.showSimTools.x = 456;
+    this.fieldControls.showSimTools.x = 458;
     this.fieldControls.showSimTools.y = 472;
     this.fieldControls.showSimTools.interactive = true;
     this.fieldControls.showSimTools.buttonMode = true;
@@ -1042,8 +1044,8 @@ export default class ChainsimEditor {
     this.fieldControls.showEditTools = new Sprite(
       this.resources["/chainsim/img/btn_puyo.png"].texture
     );
-    this.fieldControls.showEditTools.x = 536 - 2;
-    this.fieldControls.showEditTools.y = 472 - 2;
+    this.fieldControls.showEditTools.x = 536;
+    this.fieldControls.showEditTools.y = 472;
     this.fieldControls.showEditTools.interactive = true;
     this.fieldControls.showEditTools.buttonMode = true;
     this.fieldControls.showEditTools.on("pointerdown", () => {
@@ -2101,7 +2103,7 @@ export default class ChainsimEditor {
     this.gameControls.undo = new Sprite(this.resources[
       "/chainsim/img/btn_undo.png"
     ].texture);
-    this.gameControls.undo.x = 456;
+    this.gameControls.undo.x = 458;
     this.gameControls.undo.y = 472;
     this.gameControls.undo.on("pointerdown", () => {
       this.buttonDown("undo");
@@ -2113,6 +2115,20 @@ export default class ChainsimEditor {
       this.buttonUp("undo");
     });
     gameControlsList.push(this.gameControls.undo);
+
+    this.gameControls.redo = new Sprite(this.resources["/chainsim/img/btn_redo.png"].texture);
+    this.gameControls.redo.x = 536 - 2;
+    this.gameControls.redo.y = 472;
+    this.gameControls.redo.on("pointerdown", () => {
+      this.buttonDown("redo");
+    });
+    this.gameControls.redo.on("pointerup", () => {
+      this.buttonUp("redo");
+    });
+    this.gameControls.redo.on("pointerupoutside", () => {
+      this.buttonUp("redo");
+    });
+    gameControlsList.push(this.gameControls.redo);
 
     gameControlsList.forEach(sprite => {
       sprite.interactive = true;
@@ -2320,6 +2336,60 @@ export default class ChainsimEditor {
     this.refreshNextPuyos();
   }
 
+  private redoMove(): void {
+    if (this.gameMoveNumber === this.gameHistory.states.length - 1) {
+      console.log("Nothing to redo");
+      return
+    }
+
+    this.gameMoveNumber += 1;
+
+    const nextFields = this.gameHistory.states[this.gameMoveNumber];
+
+    this.gameField.updateFieldMatrix(nextFields.mainLayer);
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        this.shadowField[x][y] = new Puyo(nextFields.shadowLayer[x][y], x, y);
+      }
+    }
+    this.arrowField = nextFields.arrowLayer;
+    this.cursorField = nextFields.cursorLayer;
+    this.colorQueuePosition = nextFields.queuePosition;
+
+    this.gameField.refreshLinkData();
+    this.gameField.refreshPuyoPositionData();
+    this.gameField.setConnectionData();
+    this.refreshPuyoSprites();
+    this.refreshGarbageIcons();
+    this.refreshShadowSprites();
+    this.refreshArrowSprites();
+    this.refreshCursorSprites();
+
+    this.activePuyoPairState = {
+      timer: 0,
+      axisPuyo: {
+        color: this.colorQueue[this.colorQueuePosition - 2],
+        position: { x: 2, y: -1 },
+        animationState: "idle"
+      },
+      freePuyo: {
+        color: this.colorQueue[this.colorQueuePosition - 2 + 1],
+        position: { x: 2, y: -2 },
+        animationState: "idle"
+      }
+    };
+    this.refreshActivePair(-2);
+    const i = this.colorQueuePosition;
+    const colorString = this.colorQueue;
+    this.currentNextPuyos = [
+      [colorString[i], colorString[i + 1]],
+      [colorString[i + 2], colorString[i + 3]],
+      [colorString[i + 4], colorString[i + 5]]
+    ];
+    this.moveActivePair();
+    this.refreshNextPuyos();
+  }
+
   private buttonDown(input: string): void {
     if (this.gameMode === "endless" && this.state === this.idleState) {
       switch(input) {
@@ -2353,6 +2423,10 @@ export default class ChainsimEditor {
           ].texture;
           this.undoMove();
           break;
+        case "redo":
+          this.gameControls.redo.texture = this.resources["/chainsim/img/btn_redo_pressed.png"].texture;
+          this.redoMove();
+          break;
       }
     }
   }
@@ -2380,6 +2454,9 @@ export default class ChainsimEditor {
             "/chainsim/img/btn_undo.png"
           ].texture;
           break;
+        case "redo":
+          this.gameControls.redo.texture = this.resources["/chainsim/img/btn_redo.png"].texture;
+          break;
       }
     }
   }
@@ -2390,24 +2467,24 @@ export default class ChainsimEditor {
     let x = 0;
     let y = 0;
 
-    this.importantButtons.learn = new Sprite(this.resources["/chainsim/img/btn_learn.png"].texture);
-    this.importantButtons.learn.x = startX + 65 * x;
-    this.importantButtons.learn.y = startY + 65 * y;
-    this.importantButtons.learn.scale.set(0.9028, 0.9028);
-    this.importantButtons.learn.buttonMode = true;
-    this.importantButtons.learn.interactive = true;
-    this.importantButtons.learn.on("pointerdown", () => {
-      this.importantButtons.learn.texture = this.resources[
-        "/chainsim/img/btn_learn_pressed.png"
+    this.importantButtons.config = new Sprite(this.resources["/chainsim/img/btn_config.png"].texture);
+    this.importantButtons.config.x = startX + 65 * x;
+    this.importantButtons.config.y = startY + 65 * y;
+    this.importantButtons.config.scale.set(0.9028, 0.9028);
+    this.importantButtons.config.buttonMode = true;
+    this.importantButtons.config.interactive = true;
+    this.importantButtons.config.on("pointerdown", () => {
+      this.importantButtons.config.texture = this.resources[
+        "/chainsim/img/btn_config_pressed.png"
       ].texture;
     });
-    this.importantButtons.learn.on("pointerup", () => {
-      this.importantButtons.learn.texture = this.resources["/chainsim/img/btn_learn.png"].texture;
+    this.importantButtons.config.on("pointerup", () => {
+      this.importantButtons.config.texture = this.resources["/chainsim/img/btn_config.png"].texture;
     });
-    this.importantButtons.learn.on("pointerupoutside", () => {
-      this.importantButtons.learn.texture = this.resources["/chainsim/img/btn_learn.png"].texture;
+    this.importantButtons.config.on("pointerupoutside", () => {
+      this.importantButtons.config.texture = this.resources["/chainsim/img/btn_config.png"].texture;
     });
-    this.app.stage.addChild(this.importantButtons.learn);
+    this.app.stage.addChild(this.importantButtons.config);
     x += 1;
 
     this.importantButtons.edit = new Sprite(this.fieldSprites["btn_edit.png"]);
@@ -2448,26 +2525,26 @@ export default class ChainsimEditor {
     this.app.stage.addChild(this.importantButtons.game);
     y += 1;
 
-    this.importantButtons.config = new Sprite(
-      this.resources["/chainsim/img/btn_config.png"].texture
-    );
-    this.importantButtons.config.x = startX + 65 * x;
-    this.importantButtons.config.y = startY + 65 * y;
-    this.importantButtons.config.scale.set(0.9028, 0.9028);
-    this.importantButtons.config.buttonMode = true;
-    this.importantButtons.config.interactive = true;
-    this.importantButtons.config.on("pointerdown", () => {
-      this.importantButtons.config.texture = this.resources[
-        "/chainsim/img/btn_config_pressed.png"
-      ].texture;
-    });
-    this.importantButtons.config.on("pointerup", () => {
-      this.importantButtons.config.texture = this.resources["/chainsim/img/btn_config.png"].texture;
-    });
-    this.importantButtons.config.on("pointerupoutside", () => {
-      this.importantButtons.config.texture = this.resources["/chainsim/img/btn_config.png"].texture;
-    });
-    this.app.stage.addChild(this.importantButtons.config);
+    // this.importantButtons.config = new Sprite(
+    //   this.resources["/chainsim/img/btn_config.png"].texture
+    // );
+    // this.importantButtons.config.x = startX + 65 * x;
+    // this.importantButtons.config.y = startY + 65 * y;
+    // this.importantButtons.config.scale.set(0.9028, 0.9028);
+    // this.importantButtons.config.buttonMode = true;
+    // this.importantButtons.config.interactive = true;
+    // this.importantButtons.config.on("pointerdown", () => {
+    //   this.importantButtons.config.texture = this.resources[
+    //     "/chainsim/img/btn_config_pressed.png"
+    //   ].texture;
+    // });
+    // this.importantButtons.config.on("pointerup", () => {
+    //   this.importantButtons.config.texture = this.resources["/chainsim/img/btn_config.png"].texture;
+    // });
+    // this.importantButtons.config.on("pointerupoutside", () => {
+    //   this.importantButtons.config.texture = this.resources["/chainsim/img/btn_config.png"].texture;
+    // });
+    // this.app.stage.addChild(this.importantButtons.config);
   }
 
   private refreshPuyoSprites(): void {
@@ -3009,32 +3086,6 @@ export default class ChainsimEditor {
     }
   }
 
-  private refreshCurrentNextPuyos(): void {
-    this.activePuyoPairState = {
-      timer: 0,
-      axisPuyo: {
-        color: this.colorQueue[this.colorQueuePosition],
-        position: { x: 2, y: -1 },
-        animationState: "idle"
-      },
-      freePuyo: {
-        color: this.colorQueue[this.colorQueuePosition + 1],
-        position: { x: 2, y: -2 },
-        animationState: "idle"
-      }
-    };
-    const i = this.colorQueuePosition;
-    const colorString = this.colorQueue;
-    this.currentNextPuyos = [
-      [colorString[i], colorString[i + 1]],
-      [colorString[i + 2], colorString[i + 3]],
-      [colorString[i + 4], colorString[i + 5]]
-    ];
-    this.refreshActivePair();
-    this.moveActivePair();
-    this.refreshNextPuyos();
-  }
-
   private animateFieldCursors(delta: number): void {
     const speed = delta * this.simulationSpeed;
     const duration = 30;
@@ -3447,8 +3498,12 @@ export default class ChainsimEditor {
     this.gameControls.right.visible = false;
     this.gameControls.down.visible = false;
     this.gameControls.undo.visible = false;
+    this.gameControls.redo.visible = false;
 
     this.toggleTools();
+
+    // Resize side container
+    this.fieldControls.container.height = 303;
 
     // Hide active pair and shadow pair
     this.activePuyoPair.forEach(puyo => puyo.visible = false);
@@ -3488,6 +3543,10 @@ export default class ChainsimEditor {
     this.gameControls.right.visible = true;
     this.gameControls.down.visible = true;
     this.gameControls.undo.visible = true;
+    this.gameControls.redo.visible = true;
+
+    // Resize size container
+    this.fieldControls.container.height = 264;
 
     // Run next queue animation
     if (this.gameStarted === false) {
