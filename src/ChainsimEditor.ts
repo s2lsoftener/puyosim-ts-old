@@ -2536,6 +2536,7 @@ export default class ChainsimEditor {
     this.importantButtons.save.scale.set(0.9028, 0.9028);
     this.importantButtons.save.buttonMode = true;
     this.importantButtons.save.interactive = true;
+    this.importantButtons.save.visible = false;
     this.importantButtons.save.on("pointerdown", () => {
       this.saveGameHistory();
     })
@@ -2548,6 +2549,7 @@ export default class ChainsimEditor {
     this.importantButtons.newSeed.scale.set(0.9028, 0.9028);
     this.importantButtons.newSeed.buttonMode = true;
     this.importantButtons.newSeed.interactive = true;
+    this.importantButtons.newSeed.visible = false;
     this.importantButtons.newSeed.on("pointerdown", () => {
       this.importantButtons.newSeed.texture = this.resources["/chainsim/img/btn_newSeed_pressed.png"].texture;
       this.newSeed();
@@ -2568,6 +2570,7 @@ export default class ChainsimEditor {
     this.importantButtons.resetGame.scale.set(0.9028, 0.9028);
     this.importantButtons.resetGame.buttonMode = true;
     this.importantButtons.resetGame.interactive = true;
+    this.importantButtons.resetGame.visible = false;
     this.importantButtons.resetGame.on("pointerdown", () => {
       this.importantButtons.resetGame.texture = this.fieldSprites["btn_reset_pressed.png"];
       this.resetGame();
@@ -3533,6 +3536,9 @@ export default class ChainsimEditor {
     this.gameControls.down.visible = false;
     this.gameControls.undo.visible = false;
     this.gameControls.redo.visible = false;
+    this.importantButtons.save.visible = false;
+    this.importantButtons.newSeed.visible = false;
+    this.importantButtons.resetGame.visible = false;
 
     this.toggleTools();
 
@@ -3578,6 +3584,9 @@ export default class ChainsimEditor {
     this.gameControls.down.visible = true;
     this.gameControls.undo.visible = true;
     this.gameControls.redo.visible = true;
+    this.importantButtons.save.visible = true;
+    this.importantButtons.newSeed.visible = true;
+    this.importantButtons.resetGame.visible = true;
 
     // Resize size container
     this.fieldControls.container.height = 264;
