@@ -392,7 +392,11 @@ export default class ChainsimEditor {
       "/chainsim/img/btn_undo.png",
       "/chainsim/img/btn_undo_pressed.png",
       "/chainsim/img/btn_redo.png",
-      "/chainsim/img/btn_redo_pressed.png"
+      "/chainsim/img/btn_redo_pressed.png",
+      "/chainsim/img/btn_newSeed.png",
+      "/chainsim/img/btn_newSeed_pressed.png",
+      "/chainsim/img/btn_save.png",
+      "/chainsim/img/btn_save_pressed.png"
     ];
 
     this.loader
@@ -2523,28 +2527,58 @@ export default class ChainsimEditor {
       this.importantButtons.game.texture = this.fieldSprites["btn_game.png"];
     });
     this.app.stage.addChild(this.importantButtons.game);
+    
+    x -= 2;
     y += 1;
+    this.importantButtons.save = new Sprite(this.resources["/chainsim/img/btn_save.png"].texture);
+    this.importantButtons.save.x = startX + 65 * x;
+    this.importantButtons.save.y = startY + 65 * y;
+    this.importantButtons.save.scale.set(0.9028, 0.9028);
+    this.importantButtons.save.buttonMode = true;
+    this.importantButtons.save.interactive = true;
+    this.importantButtons.save.on("pointerdown", () => {
+      this.saveGameHistory();
+    })
+    this.app.stage.addChild(this.importantButtons.save);
 
-    // this.importantButtons.config = new Sprite(
-    //   this.resources["/chainsim/img/btn_config.png"].texture
-    // );
-    // this.importantButtons.config.x = startX + 65 * x;
-    // this.importantButtons.config.y = startY + 65 * y;
-    // this.importantButtons.config.scale.set(0.9028, 0.9028);
-    // this.importantButtons.config.buttonMode = true;
-    // this.importantButtons.config.interactive = true;
-    // this.importantButtons.config.on("pointerdown", () => {
-    //   this.importantButtons.config.texture = this.resources[
-    //     "/chainsim/img/btn_config_pressed.png"
-    //   ].texture;
-    // });
-    // this.importantButtons.config.on("pointerup", () => {
-    //   this.importantButtons.config.texture = this.resources["/chainsim/img/btn_config.png"].texture;
-    // });
-    // this.importantButtons.config.on("pointerupoutside", () => {
-    //   this.importantButtons.config.texture = this.resources["/chainsim/img/btn_config.png"].texture;
-    // });
-    // this.app.stage.addChild(this.importantButtons.config);
+    x += 1;
+    this.importantButtons.newSeed = new Sprite(this.resources["/chainsim/img/btn_newSeed.png"].texture);
+    this.importantButtons.newSeed.x = startX + 65 * x;
+    this.importantButtons.newSeed.y = startY + 65 * y;
+    this.importantButtons.newSeed.scale.set(0.9028, 0.9028);
+    this.importantButtons.newSeed.buttonMode = true;
+    this.importantButtons.newSeed.interactive = true;
+    this.importantButtons.newSeed.on("pointerdown", () => {
+      this.importantButtons.newSeed.texture = this.resources["/chainsim/img/btn_newSeed_pressed.png"].texture;
+      this.newSeed();
+      this.resetGame();
+    });
+    this.importantButtons.newSeed.on("pointerup", () => {
+      this.importantButtons.newSeed.texture = this.resources["/chainsim/img/btn_newSeed.png"].texture;
+    });
+    this.importantButtons.newSeed.on("pointerupoutside", () => {
+      this.importantButtons.newSeed.texture = this.resources["/chainsim/img/btn_newSeed.png"].texture;
+    });
+    this.app.stage.addChild(this.importantButtons.newSeed);
+
+    x += 1;
+    this.importantButtons.resetGame = new Sprite(this.fieldSprites["btn_reset.png"]);
+    this.importantButtons.resetGame.x = startX + 65 * x;
+    this.importantButtons.resetGame.y = startY + 65 * y;
+    this.importantButtons.resetGame.scale.set(0.9028, 0.9028);
+    this.importantButtons.resetGame.buttonMode = true;
+    this.importantButtons.resetGame.interactive = true;
+    this.importantButtons.resetGame.on("pointerdown", () => {
+      this.importantButtons.resetGame.texture = this.fieldSprites["btn_reset_pressed.png"];
+      this.resetGame();
+    });
+    this.importantButtons.resetGame.on("pointerup", () => {
+      this.importantButtons.resetGame.texture = this.fieldSprites["btn_reset.png"];
+    });
+    this.importantButtons.resetGame.on("pointerupoutside", () => {
+      this.importantButtons.resetGame.texture = this.fieldSprites["btn_reset.png"];
+    });
+    this.app.stage.addChild(this.importantButtons.resetGame);
   }
 
   private refreshPuyoSprites(): void {
@@ -3555,5 +3589,121 @@ export default class ChainsimEditor {
     } else {
       this.moveActivePair();
     }
+  }
+
+  private resetGame(): void {
+    this.gameMoveNumber = 0;
+
+    const prevFields = this.gameHistory.states[this.gameMoveNumber];
+
+    this.gameField.updateFieldMatrix(prevFields.mainLayer);
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        this.shadowField[x][y] = new Puyo(prevFields.shadowLayer[x][y], x, y);
+      }
+    }
+    this.arrowField = prevFields.arrowLayer;
+    this.cursorField = prevFields.cursorLayer;
+    this.colorQueuePosition = prevFields.queuePosition;
+    this.gameHistory.states = [prevFields];
+    
+    this.gameField.refreshLinkData();
+    this.gameField.refreshPuyoPositionData();
+    this.gameField.setConnectionData();
+    this.refreshPuyoSprites();
+    this.refreshGarbageIcons();
+    this.refreshShadowSprites();
+    this.refreshArrowSprites();
+    this.refreshCursorSprites();
+
+    this.activePuyoPairState = {
+      timer: 0,
+      axisPuyo: {
+        color: this.colorQueue[this.colorQueuePosition - 2],
+        position: { x: 2, y: -1 },
+        animationState: "idle"
+      },
+      freePuyo: {
+        color: this.colorQueue[this.colorQueuePosition - 2 + 1],
+        position: { x: 2, y: -2 },
+        animationState: "idle"
+      }
+    };
+    this.refreshActivePair(-2);
+    const i = this.colorQueuePosition;
+    const colorString = this.colorQueue;
+    this.currentNextPuyos = [
+      [colorString[i], colorString[i + 1]],
+      [colorString[i + 2], colorString[i + 3]],
+      [colorString[i + 4], colorString[i + 5]]
+    ];
+    this.moveActivePair();
+    this.refreshNextPuyos();
+  }
+
+  private newSeed(): void {
+    const seed = Math.round(Math.random() * 65535 * 2424);
+    const puyoGenerator = new MersenneTwister(seed);
+
+    const allColors = ["R", "G", "B", "Y", "P"];
+    const gameColors = [];
+    let colorString = '';
+    let maxColors = 4;
+
+    // Count existing colors on the board
+    const initialPuyos = [];
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        if (this.gameField.matrix[x][y].isColored) {
+          initialPuyos.push(this.gameField.matrix[x][y].p);
+        }
+      }
+    }
+
+    // Pick 4 colors
+    const initialColors = [...new Set(initialPuyos)];
+    initialColors.length > 4
+      ? maxColors = initialColors.length
+      : maxColors = 4
+
+    if (initialColors.length >= maxColors) {
+      initialColors.slice(0, maxColors).forEach(color => gameColors.push(color));
+    } else {
+      initialColors.forEach(color => {
+        allColors.splice(allColors.indexOf(color), 1);
+        gameColors.push(color);
+      })
+
+      const numColorsNeeded = maxColors - initialColors.length;
+
+      for (let i = 0; i < numColorsNeeded; i++) {
+        const index = Math.floor(puyoGenerator.random_excl() * allColors.length);
+        gameColors.push(allColors[index]);
+        allColors.splice(index, 1);
+      }
+    }
+
+    // Generate 1024 Puyos
+    for (let i = 0; i < 1024; i++) {
+      (i < 4)
+        ? colorString += gameColors[Math.floor(puyoGenerator.random_excl() * 3)]
+        : colorString += gameColors[Math.floor(puyoGenerator.random_excl() * 4)]
+    }
+    
+    this.colorSeed = seed;
+    this.colorQueue = colorString;
+    this.currentNextPuyos = [
+      [colorString[0], colorString[1]],
+      [colorString[2], colorString[3]],
+      [colorString[4], colorString[5]]
+    ]
+  }
+
+  private saveGameHistory(): void {
+    const file = new Blob([JSON.stringify(this.gameHistory)], {type: "text/plain"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file);
+    a.download = "gameHistory.json";
+    a.click();
   }
 }
