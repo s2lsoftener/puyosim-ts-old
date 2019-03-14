@@ -1876,16 +1876,41 @@ export default class ChainsimEditor {
     }
 
     if (axisPuyo.position.x !== freePuyo.position.x) {
-      const axisColEmptyCells = this.gameField.matrix[axisPuyo.position.x].filter(cell => cell.isEmpty).length;
-      const freeColEmptyCells = this.gameField.matrix[freePuyo.position.x].filter(cell => cell.isEmpty).length;
+      // Loop through column until a Puyo is met.
+      let axisColEmptyCells = 0;
+      let freeColEmptyCells = 0;
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        if (!this.gameField.matrix[axisPuyo.position.x][y].isEmpty) {
+          break;
+        }
+        axisColEmptyCells = y + 1;
+      }
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        if (!this.gameField.matrix[freePuyo.position.x][y].isEmpty) {
+          break;
+        }
+        freeColEmptyCells = y + 1;
+      }
       dropDistances.axisPuyo = axisColEmptyCells - axisPuyo.position.y - 1;
       dropDistances.freePuyo = freeColEmptyCells - freePuyo.position.y - 1;
     } else if (axisPuyo.position.y > freePuyo.position.y) {
-      const emptyCells = this.gameField.matrix[axisPuyo.position.x].filter(cell => cell.isEmpty).length;
+      let emptyCells = 0;
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        if (!this.gameField.matrix[axisPuyo.position.x][y].isEmpty) {
+          break;
+        }
+        emptyCells = y + 1;
+      }
       dropDistances.axisPuyo = emptyCells - axisPuyo.position.y - 1;
       dropDistances.freePuyo = dropDistances.axisPuyo;
     } else if (axisPuyo.position.y < freePuyo.position.y) {
-      const emptyCells = this.gameField.matrix[freePuyo.position.x].filter(cell => cell.isEmpty).length;
+      let emptyCells = 0;
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        if (!this.gameField.matrix[freePuyo.position.x][y].isEmpty) {
+          break;
+        }
+        emptyCells = y + 1;
+      }
       dropDistances.freePuyo = emptyCells - freePuyo.position.y - 1;
       dropDistances.axisPuyo = dropDistances.freePuyo;
     }
