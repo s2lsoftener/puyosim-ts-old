@@ -181,7 +181,8 @@ export default class ChainsimEditor {
   public nextCoord: any[];
   public surfaces: any[];
 
-  constructor(targetDiv: HTMLElement, colorSeed?: number) {
+  constructor(targetDiv: HTMLElement, colorSeed?: number, json?: any) {
+    console.log(json);
     this.simulatorLoaded = false;
 
     this.gameSettings = {
@@ -407,7 +408,17 @@ export default class ChainsimEditor {
         this.puyoSprites = resources["/chainsim/img/puyo.json"].textures;
         this.chainCountSprites = resources["/chainsim/img/chain_font.json"].textures;
         this.scoreCountSprites = resources["/chainsim/img/scoreFont.json"].textures;
-        this.initColorQueue();
+        
+        this.initGameHistory();
+        
+        if (json) {
+          const seed = this.initJSONData(json);
+          console.log("awouefhliauhedfiugahsdifgawiefg")
+          this.initColorQueue(undefined, seed as unknown as number);
+        } else {
+          this.initColorQueue();
+        }
+
         this.initFieldDisplay();
         this.initScoreDisplay();
         this.initGameOverX();
@@ -425,7 +436,7 @@ export default class ChainsimEditor {
         this.initGameControlDisplay();
         this.initImportantButtons();
         this.setupKeyboardControls();
-        this.initGameHistory();
+        // this.initGameHistory();
       })
       .onComplete.add(() => {
         this.simulatorLoaded = true;
@@ -692,6 +703,7 @@ export default class ChainsimEditor {
               this.gameField.matrix[x][y].y = y;
             }
             this.refreshPuyoSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -707,6 +719,7 @@ export default class ChainsimEditor {
             this.gameField.matrix[x][y].x = x;
             this.gameField.matrix[x][y].y = y;
             this.refreshPuyoSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -724,6 +737,7 @@ export default class ChainsimEditor {
             this.gameField.matrix[x][y].x = x;
             this.gameField.matrix[x][y].y = y;
             this.refreshPuyoSprites();
+            this.updateGameHistory();
           } else if (
             this.currentTool.targetLayer === "main" &&
             this.state === this.idleState &&
@@ -735,6 +749,7 @@ export default class ChainsimEditor {
             this.gameField.matrix[x][y].x = x;
             this.gameField.matrix[x][y].y = y;
             this.refreshPuyoSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -780,6 +795,7 @@ export default class ChainsimEditor {
               this.shadowField[x][y].y = y;
             }
             this.refreshShadowSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -794,6 +810,7 @@ export default class ChainsimEditor {
             this.shadowField[x][y].x = x;
             this.shadowField[x][y].y = y;
             this.refreshShadowSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -811,6 +828,7 @@ export default class ChainsimEditor {
             this.shadowField[x][y].x = x;
             this.shadowField[x][y].y = y;
             this.refreshShadowSprites();
+            this.updateGameHistory();
           } else if (
             this.currentTool.targetLayer === "shadow" &&
             this.state === this.idleState &&
@@ -821,6 +839,7 @@ export default class ChainsimEditor {
             this.shadowField[x][y].x = x;
             this.shadowField[x][y].y = y;
             this.refreshShadowSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -865,6 +884,7 @@ export default class ChainsimEditor {
               this.cursorField[x][y] = this.currentTool.puyo;
             }
             this.refreshCursorSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -876,6 +896,7 @@ export default class ChainsimEditor {
           ) {
             this.cursorField[x][y] = "0";
             this.refreshCursorSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -890,6 +911,7 @@ export default class ChainsimEditor {
           ) {
             this.cursorField[x][y] = this.currentTool.puyo;
             this.refreshCursorSprites();
+            this.updateGameHistory();
           } else if (
             this.currentTool.targetLayer === "cursor" &&
             this.state === this.idleState &&
@@ -898,6 +920,7 @@ export default class ChainsimEditor {
           ) {
             this.cursorField[x][y] = "0";
             this.refreshCursorSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -964,6 +987,7 @@ export default class ChainsimEditor {
               this.arrowField[x][y] = this.currentTool.puyo;
             }
             this.refreshArrowSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -975,6 +999,7 @@ export default class ChainsimEditor {
           ) {
             this.arrowField[x][y] = "0";
             this.refreshArrowSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -989,6 +1014,7 @@ export default class ChainsimEditor {
           ) {
             this.arrowField[x][y] = this.currentTool.puyo;
             this.refreshArrowSprites();
+            this.updateGameHistory();
           } else if (
             this.currentTool.targetLayer === "arrow" &&
             this.state === this.idleState &&
@@ -997,6 +1023,7 @@ export default class ChainsimEditor {
           ) {
             this.arrowField[x][y] = "0";
             this.refreshArrowSprites();
+            this.updateGameHistory();
           }
         });
 
@@ -1364,14 +1391,44 @@ export default class ChainsimEditor {
     this.app.stage.addChild(this.chainCountDisplay.chainText);
   }
 
+  private initJSONData(json?: any): number {
+    this.gameHistory = json;
+
+    const nextFields = this.gameHistory.states[0];
+
+    this.gameField.updateFieldMatrix(nextFields.mainLayer);
+    for (let x = 0; x < this.simulatorSettings.cols; x++) {
+      for (let y = 0; y < this.simulatorSettings.rows; y++) {
+        this.shadowField[x][y] = new Puyo(nextFields.shadowLayer[x][y], x, y);
+      }
+    }
+    this.arrowField = nextFields.arrowLayer;
+    this.cursorField = nextFields.cursorLayer;
+
+    // this.gameField.refreshLinkData();
+    // this.gameField.refreshPuyoPositionData();
+    // this.gameField.setConnectionData();
+    // this.refreshPuyoSprites();
+    // this.refreshGarbageIcons();
+    // this.refreshShadowSprites();
+    // this.refreshArrowSprites();
+    // this.refreshCursorSprites();
+    
+    this.gameHistory.seed = json.seed;
+    return json.seed;
+  }
+
   private initColorQueue(initialPuyos?: string, importedSeed?: number): void {
     let puyoGenerator;
     let seed;
     
     if (importedSeed !== undefined) {
       puyoGenerator = new MersenneTwister(importedSeed);
+      console.log("weriuqpoweiurpoqwiuerpoqwuierpoquiwer")
     } else {
+      console.log("z,xmcnv.,zxncv.,znxcvnzxckvjhzxkcjvh")
       seed = Math.round(Math.random() * 65535 * 2424);
+      this.gameHistory.seed = seed;
       puyoGenerator = new MersenneTwister(seed);
     }
 
@@ -3434,27 +3491,6 @@ export default class ChainsimEditor {
       this.chainCountDisplay.secondDigit.texture = this.chainCountSprites[
         `chain_${chainLengthText[1]}.png`
       ];
-    }
-  }
-
-  private calculateSurfaces(): void {
-    // Calculate the surfaces all around each cell
-    for (let x = 0; x < this.gameField.settings.cols; x++) {
-      for (let y = 0; y < this.gameField.settings.rows; y++) {
-        if (this.gameField.matrix[x][y].p !== PuyoType.None) {
-          this.surfaces.push({
-            top: this.coordArray[x][y].y - this.gameSettings.cellHeight,
-            right: this.coordArray[x][y].x + this.gameSettings.cellWidth,
-            bottom: this.coordArray[x][y].y + this.gameSettings.cellHeight,
-            left: this.coordArray[x][y].x - this.gameSettings.cellWidth,
-            center: {
-              x: this.coordArray[x][y].x,
-              y: this.coordArray[x][y].y
-            },
-            cell: { x, y }
-          });
-        }
-      }
     }
   }
 
