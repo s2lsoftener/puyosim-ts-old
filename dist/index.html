@@ -12,42 +12,48 @@
     </style>
   </head>
   <body>
-    <div id="game-container" style="display: flex; justify-content: center;"></div>
-    <!-- <div><button id="game-step">Step</button></div>
-    <div><button id="game-play">Play</button></div>
-    <div><button id="game-reset">Reset</button></div> -->
-
-    <!-- <h1>puyosim-ts Test</h1>
-    <div style="display: flex; flex-direction: row;">
-      <div
-        id="initial"
-        style="font-family: 'Courier New', Courier, monospace"
-      ></div>
-      <div
-        id="result"
-        style="font-family: 'Courier New', Courier, monospace; margin-left: 24px;"
-      ></div>
+    <div
+      id="game-wrapper"
+      style="position: relative; display: flex; justify-content: center; width: 100%;"
+    >
+      <div id="game-container" style="display: flex; justify-content: center;">
+        <div id="config-container" style="position: absolute; background-color: white;">
+          <h2>Tags:</h2>
+          <form>
+            <input type="checkbox" name="tags" value="" /><br />
+            <input type="checkbox" name="tags" value="" /><br />
+          </form>
+        </div>
+      </div>
     </div>
-    <h3>Score</h3>
-    <div
-      id="score"
-      style="font-family: 'Courier New', Courier, monospace"
-    ></div>
-    <h3>Chain Length</h3>
-    <div
-      id="length"
-      style="font-family: 'Courier New', Courier, monospace"
-    ></div>
-    <h3>Garbage</h3>
-    <div
-      id="garbage"
-      style="font-family: 'Courier New', Courier, monospace"
-    ></div>
-    <h3>Simulator Controls</h3>
-    <div>
-      <button id="step" type="button">Step</button>
-      <button id="open-puyonexus" type="button">PN Sim</button>
-    </div> -->
     <script src="main.js"></script>
   </body>
 </html>
+
+<!--
+Regular Form
+  ["Stairs", "Sandwich"]
+
+Irregular Form
+  ["L-Shape", "Landslide", "Stairwich", "Yayoi", "Flat Stacking", "Submarine", "Persian Style", "Diving (base)", "Kuma Stacking", "Aztec",
+  "Kenny Style"]
+
+Turn Arounds
+  ["GTR", "New GTR", "Misuken GTR", "Kanto Stacking", "Fukigen GTR", "LLR", "Pechura",
+  "Slug Folding", "Danshoku", "Sanagawa Transition", "Beetle", "Alpine Flower", "Multiple Stacking"]
+  
+Tails
+  ["Avalanche", "Turukame", "Quicksand", "Turning", "Scatter", "Daruma Otoshi", "Insane Niagara", "Diving (tail)", "Door Bolt", "2-Column Tail", "3-Column Tail", "Saitou Special", "Tanaka Special",
+  "Sagat Special", "Tom Special", "live Special", "Shiroma Special", "Collapsing Crevasse", "Thomson Tail"]
+
+Counter
+  ["Holy Counter", "Evil Counter", "Double Counter",
+  "Dam Counter", "Matsukane Counter", "Successive Counter", "Tanakacchi Style Counter", "Ino Style Counter"]
+
+Power Chains
+  ["Dam Stacking", "Thorn", "Hellfire", "Death Tower", "Twin Tower", "Devil Tower", "Killer Ice", "Mille-feuille", "L-Murder", "Haunted House"]
+
+Misc. Tags
+  ["Reversible", "Kamaitachi", "Kameitachi", "Rising Dragon", "Two-on-Two Stacking", "Same-Color Chaining", "Kenny Formula", "Ghost Chain"]
+
+-->
